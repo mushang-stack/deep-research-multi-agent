@@ -34,14 +34,14 @@ def build_system(config: Config, *, client: LLMClient | None = None,
 
     def _run_researcher(sub_question):
         return make_researcher(client=client, search_client=search_client,
-                               max_chars=max_chars).run(sub_question)
+                               max_chars=max_chars, max_steps=max_steps).run(sub_question)
 
     def _run_verifier(findings_json):
         return make_verifier(client=client, search_client=search_client,
-                             max_chars=max_chars).run(findings_json)
+                             max_chars=max_chars, max_steps=max_steps).run(findings_json)
 
     def _run_writer(user_message):
-        return make_writer(client=client).run(user_message)
+        return make_writer(client=client, max_steps=max_steps).run(user_message)
 
     return make_orchestrator(
         client=client,
