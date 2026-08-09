@@ -1,0 +1,77 @@
+"""Orchestrator:规划中枢。AgentLoop + 三个内部派发工具。
+子 agent runner 注入(生产由 system.py 绑定共享 client,测试注入 fake)。
+状态用闭包:report_holder(机制级确定性提取)、round_counter(轮次护栏)。"""
+import json
+
+from core.agent_loop import AgentLoop
+from core.tool_registry import ToolRegistry
+from .dispatch import dispatch_research, parse_results, parse_report
+from .prompts import ORCHESTRATOR_PROMPT
+
+
+def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
+                      max_steps: int = 12, research_max_rounds: int = 3):
+    """返回 (orchestrator_loop, get_report)。
+
+    run_researcher(sub_question) -> AgentResult   (content = Findings JSON)
+    run_verifier(findings_json)  -> AgentResult   (content = Results JSON)
+    run_writer(user_message)     -> AgentResult   (content = Report JSON)
+    get_report() -> Report | None   (从 holder 取;None 表示从未成功 write_report)
+    """
+    holder: dict = {}
+    round_counter: dict = {"n": 0}
+
+    def _dispatch_research(sub_questions: list[str]) -> dict:
+        round_counter["n"] += 1
+        if round_counter["n"] > research_max_rounds:
+            return {"status": "max_rounds_reached",
+                    "message": "已达最大研究轮次,请直接 write_report,不要再检索。"}
+        return dispatch_research(sub_questions, run_researcher)
+
+    def _verify_findings(findings: list[dict]) -> dict:
+        msg = json.dumps({"findings": findings}, ensure_ascii=False)
+        result = run_verifier(msg)
+        results = parse_results(result.content)
+        return {"results": [r.model_dump() for r in results]}
+
+    def _write_report(outline: str, verified_findings: list[dict]) -> dict:
+        msg = json.dumps({"outline": outline, "verified_findings": verified_findings},
+                         ensure_ascii=False)
+        result = run_writer(msg)
+        report = parse_report(result.content)
+        if report is None:
+            return {"error": "writer 产出不可解析,请重试或基于现有 findings 重写"}
+        holder["report"] = report  # 机制级确定性提取
+        return report.model_dump()
+
+    reg = ToolRegistry()
+    reg.register(
+        "dispatch_research", _dispatch_research,
+        description="对一组子问题并发检索,返回 {findings:[...], failures:[...]}。",
+        parameters={"type": "object",
+                    "properties": {"sub_questions": {"type": "array", "items": {"type": "string"}}},
+                    "required": ["sub_questions"]},
+    )
+    reg.register(
+        "verify_findings", _verify_findings,
+        description="复核一批 findings 是否有来源支撑,返回 {results:[{finding_id,verdict,reason,...}]}。",
+        parameters={"type": "object",
+                    "properties": {"findings": {"type": "array", "items": {"type": "object"}}},
+                    "required": ["findings"]},
+    )
+    reg.register(
+        "write_report", _write_report,
+        description="基于已验证 findings 综合带引用报告。调用后用一句话收尾,不再调任何工具。",
+        parameters={"type": "object",
+                    "properties": {"outline": {"type": "string"},
+                                   "verified_findings": {"type": "array", "items": {"type": "object"}}},
+                    "required": ["outline", "verified_findings"]},
+    )
+
+    loop = AgentLoop(client=client, system_prompt=ORCHESTRATOR_PROMPT,
+                     registry=reg, max_steps=max_steps, name="orchestrator")
+
+    def get_report():
+        return holder.get("report")
+
+    return loop, get_report
