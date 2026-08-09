@@ -114,6 +114,12 @@ def _print_summary(summary: dict) -> None:
 def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
          judge_client=None, cfg=None, results_dir=None) -> int:
     load_dotenv()
+    # Windows 控制台默认 GBK,强制 stdout/stderr UTF-8,避免 ✓/✗/⚠ 等 Unicode 字符 UnicodeEncodeError
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         prog="python -m eval.run_eval",
         description="质量评估:跑基准集 → GLM 逐条裁判 → scorecard + 上线门槛")
