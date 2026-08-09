@@ -9,6 +9,7 @@ from .researcher import make_researcher
 from .verifier import make_verifier
 from .writer import make_writer
 from .orchestrator import make_orchestrator
+from .observe import progress
 
 
 def build_system(config: Config, *, client: LLMClient | None = None,
@@ -33,14 +34,20 @@ def build_system(config: Config, *, client: LLMClient | None = None,
     research_max_rounds = config["guards"]["research_max_rounds"]
 
     def _run_researcher(sub_question):
-        return make_researcher(client=client, search_client=search_client,
-                               max_chars=max_chars, max_steps=max_steps).run(sub_question)
+        progress(f"  [researcher] 检索子问题:{sub_question}")
+        result = make_researcher(client=client, search_client=search_client,
+                                 max_chars=max_chars, max_steps=max_steps).run(sub_question)
+        content = result.content or ""
+        progress(f"  [researcher] 完成 → content {len(content)} 字,前 120 字:{content[:120]!r}")
+        return result
 
     def _run_verifier(findings_json):
+        progress("  [verifier] 复核 findings 来源支撑")
         return make_verifier(client=client, search_client=search_client,
                              max_chars=max_chars, max_steps=max_steps).run(findings_json)
 
     def _run_writer(user_message):
+        progress("  [writer] 综合带引用报告(无工具,仅用传入 findings)")
         return make_writer(client=client, max_steps=max_steps).run(user_message)
 
     return make_orchestrator(

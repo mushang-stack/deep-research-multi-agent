@@ -6,6 +6,7 @@ import json
 from core.agent_loop import AgentLoop
 from core.tool_registry import ToolRegistry
 from .dispatch import dispatch_research, parse_results, parse_report
+from .observe import progress
 from .prompts import ORCHESTRATOR_PROMPT
 
 
@@ -24,23 +25,33 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
     def _dispatch_research(sub_questions: list[str]) -> dict:
         round_counter["n"] += 1
         if round_counter["n"] > research_max_rounds:
+            progress(f"[orchestrator] ⚠ 已达最大研究轮次({research_max_rounds}),请直接 write_report 收尾")
             return {"status": "max_rounds_reached",
                     "message": "已达最大研究轮次,请直接 write_report,不要再检索。"}
-        return dispatch_research(sub_questions, run_researcher)
+        progress(f"[orchestrator] dispatch_research 第 {round_counter['n']}/{research_max_rounds} 轮,派发 {len(sub_questions)} 个子问题")
+        out = dispatch_research(sub_questions, run_researcher)
+        progress(f"[orchestrator] dispatch_research 完成 → {len(out['findings'])} 条 findings,{len(out['failures'])} 个失败子问题")
+        return out
 
     def _verify_findings(findings: list[dict]) -> dict:
+        progress(f"[orchestrator] verify_findings → 复核 {len(findings)} 条 findings")
         msg = json.dumps({"findings": findings}, ensure_ascii=False)
         result = run_verifier(msg)
         results = parse_results(result.content)
+        progress(f"[orchestrator] verify_findings 完成 → {len(results)} 条结果")
         return {"results": [r.model_dump() for r in results]}
 
     def _write_report(outline: str, verified_findings: list[dict]) -> dict:
+        progress(f"[orchestrator] write_report → 让 Writer 综合报告(outline {len(outline)} 字,{len(verified_findings)} 条 verified findings)")
         msg = json.dumps({"outline": outline, "verified_findings": verified_findings},
                          ensure_ascii=False)
         result = run_writer(msg)
         report = parse_report(result.content)
         if report is None:
+            snippet = (result.content or "")[:200]
+            progress(f"[orchestrator] ✗ Writer 输出无法解析为 Report。原始 content 前 200 字:{snippet!r}")
             return {"error": "writer 产出不可解析,请重试或基于现有 findings 重写"}
+        progress(f"[orchestrator] ✓ 报告已生成({len(report.sections)} 节),存入 holder")
         holder["report"] = report  # 机制级确定性提取
         return report.model_dump()
 
