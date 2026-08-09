@@ -32,6 +32,34 @@ def test_parse_results_and_report():
     assert parse_report("garbage") is None
 
 
+def test_parse_findings_extracts_json_from_prose():
+    # DeepSeek 常在 JSON 前输出思考散文("我已经收集了…让我整理…")——解析层必须把 JSON 抠出来
+    text = ('我已经收集了丰富的资料。现在让我整理这些发现,形成结构化的 JSON 输出。\n\n'
+            '基于读取的内容整理如下。\n\n'
+            '{"findings": [{"id":"f1","claim":"投机解码可加速推理","source_url":"https://x"}]}')
+    fs = parse_findings(text)
+    assert len(fs) == 1 and fs[0].claim == "投机解码可加速推理"
+
+
+def test_parse_results_extracts_json_from_prose():
+    text = '复核完成,结论如下:\n\n{"results":[{"finding_id":"f1","verdict":"supported"}]}'
+    rs = parse_results(text)
+    assert len(rs) == 1 and rs[0].verdict == "supported"
+
+
+def test_parse_report_extracts_json_from_prose():
+    text = '好的,这是报告。\n\n{"sections":[{"heading":"H","content":"C"}],"sources":["https://x"]}'
+    rep = parse_report(text)
+    assert rep is not None and rep.sections[0].heading == "H"
+
+
+def test_parse_findings_extracts_json_from_fenced_prose():
+    # 散文 + 围栏 JSON 的组合也应被正确提取
+    text = '思考中…\n```json\n{"findings":[{"id":"f1","claim":"c","source_url":"https://x"}]}\n```'
+    fs = parse_findings(text)
+    assert len(fs) == 1 and fs[0].claim == "c"
+
+
 def _result(content):
     return type("R", (), {"content": content})()
 

@@ -20,9 +20,43 @@ def clean_json(text: str) -> str:
     return s.strip()
 
 
+def _json_substring(text: str) -> str:
+    """从文本中抠出第一个平衡的 JSON 对象子串。
+
+    模型(尤其 DeepSeek)常在 JSON 前后输出思考散文("我已经收集了…让我整理…{json}")。
+    clean_json 只去围栏,去不掉这种散文 → json.loads 整段必失败。这里用大括号深度
+    扫描(识别字符串字面量与转义),把第一个平衡的 {...} 抠出来。找不到则原样返回,
+    交由 safe_parse_arguments 兜底成 {}。纯 JSON / 围栏 JSON 不受影响(首字符即 {)。"""
+    start = text.find("{")
+    if start == -1:
+        return text
+    depth = 0
+    in_str = False
+    escaped = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if in_str:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+    return text  # 不平衡:原样返回,让上层兜底
+
+
 def _items(text: str, key: str) -> list[dict]:
     """从 {"<key>":[...]} 提取列表。坏 JSON → []。"""
-    data = safe_parse_arguments(clean_json(text))
+    data = safe_parse_arguments(_json_substring(clean_json(text)))
     if not isinstance(data, dict):
         return []
     return data.get(key, []) or []
@@ -49,7 +83,7 @@ def parse_results(text: str) -> list[VerificationResult]:
 
 
 def parse_report(text: str) -> Optional[Report]:
-    data = safe_parse_arguments(clean_json(text))
+    data = safe_parse_arguments(_json_substring(clean_json(text)))
     if not isinstance(data, dict):
         return None
     try:
