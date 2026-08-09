@@ -813,7 +813,7 @@ class OpenAICompatClient(LLMClient):
             "model": model or self.model,
             "messages": messages,
             "temperature": temperature if temperature is not None else self.temperature,
-            "max_tokens": max_tokens or self.max_tokens,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
         }
         if tools:
             kwargs["tools"] = tools
