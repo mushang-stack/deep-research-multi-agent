@@ -1,7 +1,10 @@
+import json
+
+from core.config import Config
 from core.schemas import Report, ReportSection
 from llm.base import LLMResponse
 
-from eval.run_eval import evaluate_question, report_to_text
+from eval.run_eval import evaluate_question, load_benchmark, main, report_to_text
 
 
 class FakeGLMClient:
@@ -78,3 +81,118 @@ def test_evaluate_question_zero_findings_coverage_only():
     assert sc["grounding"] is None
     assert sc["grounding_available"] is False
     assert sc["coverage"] == 0.0
+
+
+# ---------- load_benchmark ----------
+
+def test_load_benchmark_loads_valid_skips_template_and_invalid(tmp_path):
+    (tmp_path / "q1.yaml").write_text(
+        "id: q1\nquestion: Q\nkey_facts:\n  - 事实\n", encoding="utf-8")
+    # _ 前缀模板跳过
+    (tmp_path / "_template.yaml").write_text(
+        "id: tpl\nquestion: Q\nkey_facts:\n  - 事实\n", encoding="utf-8")
+    # 缺 key_facts → 非法,跳过
+    (tmp_path / "bad.yaml").write_text("id: bad\nquestion: Q\n", encoding="utf-8")
+    items = load_benchmark(tmp_path)
+    assert [it["id"] for it in items] == ["q1"]
+    assert items[0]["key_facts"] == ["事实"]
+
+
+# ---------- main CLI ----------
+
+def _bench_with(tmp_path, ids):
+    bench = tmp_path / "bench"
+    bench.mkdir()
+    for i in ids:
+        (bench / f"{i}.yaml").write_text(
+            f"id: {i}\nquestion: Q{i}\nkey_facts:\n  - 事实\n", encoding="utf-8")
+    return bench
+
+
+def _fake_run_one(question):
+    report = Report(sections=[ReportSection(heading="H", content="C")])
+    history = [{"role": "tool", "content":
+                '{"findings":[{"id":"f1","claim":"c","source_url":"https://x"}]}'}]
+    return report, history
+
+
+def test_main_runs_and_writes_scorecard(tmp_path):
+    bench = _bench_with(tmp_path, ["q1"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--results", str(out)],
+              run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert (out / "q1.json").exists()
+    summary = json.loads((out / "scorecard.json").read_text(encoding="utf-8"))
+    assert summary["passed"] is True
+    assert summary["mean_grounding"] == 1.0
+    assert summary["n_questions"] == 1
+
+
+def test_main_limit_caps_question_count(tmp_path):
+    bench = _bench_with(tmp_path, ["q0", "q1", "q2"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([  # 只够 1 题:1 finding + 1 key_fact
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--results", str(out), "--limit", "1"],
+              run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert (out / "q0.json").exists()
+    assert not (out / "q1.json").exists()
+
+
+def test_main_only_filters_to_one(tmp_path):
+    bench = _bench_with(tmp_path, ["q0", "q1"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--results", str(out), "--only", "q1"],
+              run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert not (out / "q0.json").exists()
+    assert (out / "q1.json").exists()
+
+
+def test_main_no_items_prints_usage(tmp_path, capsys):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(empty), "--results", str(tmp_path / "out")], cfg=cfg)
+    assert rc == 1
+    assert "用法" in capsys.readouterr().err
+
+
+def test_main_question_error_does_not_abort_run(tmp_path):
+    bench = _bench_with(tmp_path, ["good", "bad"])
+    out = tmp_path / "out"
+
+    def run_one_flaky(question):
+        if "bad" in question:
+            raise RuntimeError("agent exploded")
+        return _fake_run_one(question)
+
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--results", str(out)],
+              run_one_fn=run_one_flaky, judge_client=judge, cfg=cfg)
+    assert rc == 0  # 整批未中断
+    assert (out / "good.json").exists()
+    bad_sc = json.loads((out / "bad.json").read_text(encoding="utf-8"))
+    assert bad_sc["success"] is False
+    assert bad_sc["failed"] == "error"
+    summary = json.loads((out / "scorecard.json").read_text(encoding="utf-8"))
+    assert summary["n_questions"] == 2
