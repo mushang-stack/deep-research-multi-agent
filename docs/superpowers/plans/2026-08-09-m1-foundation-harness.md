@@ -433,9 +433,9 @@ def test_response_with_tool_calls():
 
 def test_llmclient_is_abstract():
     import pytest
-    client = LLMClient()  # ABC 实例化应失败(chat 未实现)
-    with pytest.raises(Exception):
-        client.chat(messages=[])
+    # ABC 有未实现的 abstractmethod → 实例化即抛 TypeError(在 ABCMeta.__call__ 阶段)
+    with pytest.raises(TypeError):
+        LLMClient()
 ```
 
 - [ ] **Step 2: 跑测试验证失败**
