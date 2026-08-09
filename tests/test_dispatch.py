@@ -2,15 +2,8 @@ import threading
 import time
 
 from agents.dispatch import (
-    clean_json, parse_findings, parse_results, parse_report, dispatch_research,
+    parse_findings, parse_results, parse_report, dispatch_research,
 )
-
-
-def test_clean_json_strips_markdown_fence():
-    assert clean_json('```json\n{"a":1}\n```') == '{"a":1}'
-    assert clean_json('{"a":1}') == '{"a":1}'
-    assert clean_json("") == ""
-    assert clean_json("  ```\n{}\n```  ") == "{}"
 
 
 def test_parse_findings_valid():
