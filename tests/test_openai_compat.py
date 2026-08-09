@@ -102,6 +102,17 @@ def test_chat_retries_exhaust_then_raises_transient():
         c.chat(messages=[{"role": "user", "content": "q"}])
 
 
+def test_chat_retries_on_503_then_succeeds():
+    req = httpx.Request("POST", "https://x")
+    err503 = openai.APIStatusError(
+        "server error", response=httpx.Response(503, request=req), body=None)
+    ok = _FakeResponse(_FakeMessage(content="recovered"))
+    c, completions = _client_with([err503, ok])
+    out = c.chat(messages=[{"role": "user", "content": "q"}])
+    assert out.content == "recovered"
+    assert len(completions.calls) == 2  # 503→重试→成功
+
+
 def test_chat_does_not_retry_on_non_transient():
     req = httpx.Request("POST", "https://x")
     bad = openai.BadRequestError(
