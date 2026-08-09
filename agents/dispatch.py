@@ -2,7 +2,6 @@
 - JSON 清洗/解析:子 agent 输出严格 JSON,但模型常套 markdown 代码块/带杂字,这里清洗+兜底。
 - 并行派发 dispatch_research:ThreadPoolExecutor 并发跑 N 个 researcher,合并 findings,单点容错。"""
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
@@ -77,7 +76,7 @@ def dispatch_research(sub_questions: list[str], run_one, *, max_workers: int | N
                 findings.extend(parse_findings(result.content))
             except Exception as e:  # 单点失败:容错,不阻塞整体
                 failures.append({"sub_question": sq, "error": repr(e)})
-    # 多 researcher 可能都用 "f1" → 去重重编号,避免 id 冲突
+    # 多 researcher 可能都用 "f1" → 统一重编号,避免 id 冲突
     for i, f in enumerate(findings, 1):
         f.id = f"f{i}"
     return {"findings": [f.model_dump() for f in findings], "failures": failures}
