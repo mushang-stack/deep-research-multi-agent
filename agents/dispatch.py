@@ -1,0 +1,83 @@
+"""子 agent 派发原语(集中管理,单一职责):
+- JSON 清洗/解析:子 agent 输出严格 JSON,但模型常套 markdown 代码块/带杂字,这里清洗+兜底。
+- 并行派发 dispatch_research:ThreadPoolExecutor 并发跑 N 个 researcher,合并 findings,单点容错。"""
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
+
+from core.robust import safe_parse_arguments
+from core.schemas import Finding, VerificationResult, Report
+
+
+def clean_json(text: str) -> str:
+    """去除 markdown 代码块包裹(```json ... ```)与首尾空白。"""
+    if not text:
+        return ""
+    s = text.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\s*\n?", "", s)
+        s = re.sub(r"\n?```\s*$", "", s)
+    return s.strip()
+
+
+def _items(text: str, key: str) -> list[dict]:
+    """从 {"<key>":[...]} 提取列表。坏 JSON → []。"""
+    data = safe_parse_arguments(clean_json(text))
+    if not isinstance(data, dict):
+        return []
+    return data.get(key, []) or []
+
+
+def parse_findings(text: str) -> list[Finding]:
+    out = []
+    for it in _items(text, "findings"):
+        try:
+            out.append(Finding(**it))
+        except Exception:
+            continue  # 坏项跳过(容错)
+    return out
+
+
+def parse_results(text: str) -> list[VerificationResult]:
+    out = []
+    for it in _items(text, "results"):
+        try:
+            out.append(VerificationResult(**it))
+        except Exception:
+            continue
+    return out
+
+
+def parse_report(text: str) -> Optional[Report]:
+    data = safe_parse_arguments(clean_json(text))
+    if not isinstance(data, dict):
+        return None
+    try:
+        return Report(**data)
+    except Exception:
+        return None
+
+
+def dispatch_research(sub_questions: list[str], run_one, *, max_workers: int | None = None) -> dict:
+    """并发跑 N 个 researcher(每个 sub_question 一个),合并 findings,单点容错。
+
+    run_one(sub_question) -> 对象(需有 .content 属性,JSON 字符串,如 AgentResult)。
+    单个 run_one 抛异常(Escalation 等)不阻塞整体,记入 failures。
+    返回 {"findings":[...], "failures":[...]}(回填给 Orchestrator 的精简结构)。"""
+    findings: list[Finding] = []
+    failures: list[dict] = []
+    workers = max_workers or max(1, len(sub_questions))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        future_map = {ex.submit(run_one, sq): sq for sq in sub_questions}
+        for fut in as_completed(future_map):
+            sq = future_map[fut]
+            try:
+                result = fut.result()
+                findings.extend(parse_findings(result.content))
+            except Exception as e:  # 单点失败:容错,不阻塞整体
+                failures.append({"sub_question": sq, "error": repr(e)})
+    # 多 researcher 可能都用 "f1" → 去重重编号,避免 id 冲突
+    for i, f in enumerate(findings, 1):
+        f.id = f"f{i}"
+    return {"findings": [f.model_dump() for f in findings], "failures": failures}
