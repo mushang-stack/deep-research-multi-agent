@@ -1,0 +1,9 @@
+openai>=1.30
+httpx>=0.27
+pydantic>=2.6
+trafilatura>=1.12
+pyyaml>=6.0
+streamlit>=1.30
+python-dotenv>=1.0
+pytest>=8.0
+pytest-mock>=3.12
