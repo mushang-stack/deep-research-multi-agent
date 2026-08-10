@@ -1,0 +1,8 @@
+id: q002
+question: "分析2026年主流AI Coding Agent产品的功能差异，包括Claude Code、Cursor和GitHub Copilot Agent模式。"
+key_facts:
+  - "Claude Code定位为基于Claude模型的终端Coding Agent"
+  - "Cursor通过AI编辑器提供代码生成、修改和项目理解能力"
+  - "GitHub Copilot提供代码补全、聊天以及Agent模式能力"
+  - "Coding Agent核心能力包括代码理解、工具调用、自主修改和测试执行"
+  - "Coding Agent评价指标包括任务完成率、token成本和开发效率提升"

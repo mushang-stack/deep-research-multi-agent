@@ -1,0 +1,9 @@
+id: q001
+question: "比较RAG和Fine-tuning在企业AI应用中的适用场景和技术限制。"
+
+key_facts:
+  - "RAG通过检索外部知识增强模型回答能力"
+  - "Fine-tuning通过调整模型参数改变模型行为"
+  - "RAG适合知识频繁变化且需要引用来源的场景"
+  - "Fine-tuning适合固定任务模式和特定输出风格优化"
+  - "企业应用通常结合RAG、Fine-tuning和Prompt Engineering"

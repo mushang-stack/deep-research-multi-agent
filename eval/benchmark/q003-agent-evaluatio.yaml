@@ -1,0 +1,9 @@
+id: q003
+question: "如何设计一个用于评价AI Agent性能的benchmark体系？"
+
+key_facts:
+  - "Agent评估通常包含任务成功率、准确性、成本和延迟等指标"
+  - "Benchmark需要定义明确任务输入和可验证输出标准"
+  - "LLM-as-a-Judge可以用于自动评价Agent生成结果质量"
+  - "Agent评估需要考虑工具调用正确性和任务执行轨迹"
+  - "真实生产环境还需要评估用户满意度和业务指标"

@@ -1,5 +1,0 @@
-id: q001
-question: "DeepSeek-V3 如何用投机解码(speculative decoding)加速推理?"
-key_facts:
-  - "投机解码用一个小型草稿模型生成候选 token,再由目标大模型批量校验"
-  - "DeepSeek-V3 在其技术报告中报告了投机解码带来的解码加速"

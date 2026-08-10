@@ -1,0 +1,9 @@
+id: q004
+question: "截至2026年，主流AI Agent开发框架有哪些，它们在架构设计、工具调用和生产部署方面有什么区别？"
+
+key_facts:
+  - "LangGraph基于图结构管理Agent状态和工作流，支持循环、条件分支等复杂Agent流程"
+  - "CrewAI采用多Agent角色协作模式，通过角色定义实现任务分工"
+  - "OpenAI Agents SDK提供Agent、Tool、Handoff等核心抽象用于构建Agent系统"
+  - "Claude Agent SDK支持Claude模型驱动的Agent开发，并提供工具调用能力"
+  - "生产级Agent框架需要考虑状态管理、评估、监控和成本控制"
