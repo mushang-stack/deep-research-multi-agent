@@ -28,3 +28,10 @@ def test_writer_has_no_tools_and_cites():
 def test_orchestrator_knows_dispatch_tools_and_wrapup():
     for t in ("dispatch_research", "verify_findings", "write_report"):
         assert t in ORCHESTRATOR_PROMPT
+
+
+def test_researcher_prompt_has_convergence_budget():
+    """M2 回修:researcher prompt 必须含收敛预算(检索上限 + 收敛触发 + 空页跳过)。"""
+    assert "最多" in RESEARCHER_PROMPT          # 检索次数上限措辞
+    assert "跳过" in RESEARCHER_PROMPT          # 空页处理
+    assert "立即" in RESEARCHER_PROMPT          # 收敛触发(读到几篇就停)
