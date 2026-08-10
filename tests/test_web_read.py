@@ -10,16 +10,18 @@ def test_fetch_text_happy(monkeypatch):
     assert len(out) <= 20
 
 
-def test_fetch_text_empty_when_download_fails(monkeypatch):
+def test_fetch_text_diagnostic_when_download_fails(monkeypatch):
     monkeypatch.setattr(web_read.trafilatura, "fetch_url", lambda url: None)
-    assert web_read.fetch_text("https://example.com/missing") == ""
+    out = web_read.fetch_text("https://example.com/missing")
+    assert out.startswith("[抓取失败]")
 
 
-def test_fetch_text_empty_when_extract_none(monkeypatch):
+def test_fetch_text_diagnostic_when_extract_none(monkeypatch):
     monkeypatch.setattr(web_read.trafilatura, "fetch_url", lambda url: "<html></html>")
     monkeypatch.setattr(web_read.trafilatura, "extract",
                         lambda html, with_metadata=False: None)
-    assert web_read.fetch_text("https://example.com/x") == ""
+    out = web_read.fetch_text("https://example.com/x")
+    assert out.startswith("[抓取失败]")
 
 
 def test_fetch_text_no_truncate_when_zero(monkeypatch):
