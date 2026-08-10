@@ -1,6 +1,6 @@
 from agents.system import build_system
 from core.config import load_config
-from llm.base import LLMClient, LLMResponse
+from llm.base import LLMClient, LLMResponse, ToolCall
 
 
 def _write_cfg(tmp_path):
@@ -11,7 +11,7 @@ def _write_cfg(tmp_path):
         "tools:\n"
         "  web_search: {endpoint: 'https://api.bochaai.com/v1/web-search', count: 8}\n"
         "  web_read: {max_chars: 8000}\n"
-        "guards: {agent_max_steps: 12, research_max_rounds: 3, request_max_retries: 3, request_backoff_base: 1.5}\n",
+        "guards: {agent_max_steps: 12, research_max_rounds: 3, researcher_max_steps: 6, request_max_retries: 3, request_backoff_base: 1.5}\n",
         encoding="utf-8",
     )
     return load_config(p)
@@ -53,3 +53,36 @@ def test_build_system_uses_injected_clients(tmp_path):
 
     loop, _ = build_system(cfg, client=FakeClient(), search_client=object())
     assert isinstance(loop.client, FakeClient)  # 注入的 client 被直接采用
+
+
+def test_build_system_injects_researcher_max_steps(tmp_path, monkeypatch):
+    """researcher 用专用步数(默认 6),orchestrator 仍用 agent_max_steps(12)。"""
+    cfg = _write_cfg(tmp_path)
+    captured = {}
+
+    class _FakeResearcherLoop:
+        def __init__(self, **kw):
+            captured.update(kw)
+        def run(self, sub_question):
+            from core.agent_loop import AgentResult
+            return AgentResult(content='{"findings": []}')
+
+    monkeypatch.setattr("agents.system.make_researcher", _FakeResearcherLoop)
+
+    class _FakeClient(LLMClient):
+        def __init__(self, responses):
+            self._r = list(responses)
+        def chat(self, **kw):
+            return self._r.pop(0)
+
+    client = _FakeClient([
+        LLMResponse(content="", tool_calls=[
+            ToolCall(id="1", name="dispatch_research",
+                     arguments='{"sub_questions": ["x"]}')]),
+        LLMResponse(content="收尾"),  # 第二轮无 tool_call → orchestrator 收敛
+    ])
+    loop, _ = build_system(cfg, client=client, search_client=object())
+    loop.run("问题")
+
+    assert captured["max_steps"] == 6        # researcher 注入了专用步数
+    assert loop.max_steps == 12              # orchestrator 仍用 agent_max_steps

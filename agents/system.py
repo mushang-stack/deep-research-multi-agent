@@ -31,12 +31,13 @@ def build_system(config: Config, *, client: LLMClient | None = None,
 
     max_chars = config["tools"]["web_read"]["max_chars"]
     max_steps = config["guards"]["agent_max_steps"]
+    researcher_max_steps = config["guards"].get("researcher_max_steps", max_steps)
     research_max_rounds = config["guards"]["research_max_rounds"]
 
     def _run_researcher(sub_question):
         progress(f"  [researcher] 检索子问题:{sub_question}")
         result = make_researcher(client=client, search_client=search_client,
-                                 max_chars=max_chars, max_steps=max_steps).run(sub_question)
+                                 max_chars=max_chars, max_steps=researcher_max_steps).run(sub_question)
         content = result.content or ""
         progress(f"  [researcher] 完成 → content {len(content)} 字,前 120 字:{content[:120]!r}")
         return result
