@@ -50,15 +50,28 @@ def test_dispatch_research_calls_runner_and_merges():
 
 
 def test_dispatch_research_round_guard():
-    loop, _ = _make(lambda sq: _result('{"findings":[]}'),
+    # 有 findings 的前提下,达 max_rounds → 引导 write_report 收尾
+    loop, _ = _make(lambda sq: _result('{"findings":[{"id":"f1","claim":"c","source_url":"https://x"}]}'),
                     lambda f: _result('{}'), lambda m: _result('{}'),
                     research_max_rounds=2)
     # 前两轮正常派发
     assert "findings" in loop.registry.execute("dispatch_research", {"sub_questions": ["q1"]})
     assert "findings" in loop.registry.execute("dispatch_research", {"sub_questions": ["q2"]})
-    # 第三轮超限 → 引导收敛(不再派发)
+    # 第三轮超限 + 累计有 findings → max_rounds_reached(请 write_report 收尾)
     out = loop.registry.execute("dispatch_research", {"sub_questions": ["q3"]})
     assert out["status"] == "max_rounds_reached"
+
+
+def test_dispatch_research_no_findings_at_max_rounds():
+    # 0 findings + 达 max_rounds → 提示不要 write_report(避免空报告)
+    loop, _ = _make(lambda sq: _result('{"findings":[]}'),
+                    lambda f: _result('{}'), lambda m: _result('{}'),
+                    research_max_rounds=2)
+    loop.registry.execute("dispatch_research", {"sub_questions": ["q1"]})  # 轮1, 0 findings
+    loop.registry.execute("dispatch_research", {"sub_questions": ["q2"]})  # 轮2, 0 findings
+    out = loop.registry.execute("dispatch_research", {"sub_questions": ["q3"]})  # 轮3 超限 + 累计 0
+    assert out["status"] == "no_findings"
+    assert "write_report" in out["message"] or "不要" in out["message"]  # 提示不写报告
 
 
 def test_verify_findings_parses_results():
@@ -88,6 +101,18 @@ def test_write_report_stores_in_holder():
 def test_write_report_unparseable_not_stored():
     loop, get_report = _make(lambda sq: _result('{}'), lambda f: _result('{}'),
                              lambda m: _result("not json"))
+    out = loop.registry.execute("write_report",
+                                {"outline": "x", "verified_findings": [{"id": "f1"}]})
+    assert "error" in out
+    assert get_report() is None
+
+
+def test_write_report_empty_findings_refused():
+    # 0 verified findings → 拒绝(不调 writer,避免空报告);holder 保持 None
+    writer_called = []
+    loop, get_report = _make(lambda sq: _result('{}'), lambda f: _result('{}'),
+                             lambda m: (writer_called.append(1), _result('{}'))[1])
     out = loop.registry.execute("write_report", {"outline": "x", "verified_findings": []})
     assert "error" in out
     assert get_report() is None
+    assert writer_called == []  # writer 未被调用

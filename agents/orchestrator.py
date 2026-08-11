@@ -21,15 +21,21 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
     """
     holder: dict = {}
     round_counter: dict = {"n": 0}
+    findings_total: dict = {"n": 0}  # 累计所有轮次 findings(判断是否空研究)
 
     def _dispatch_research(sub_questions: list[str]) -> dict:
         round_counter["n"] += 1
         if round_counter["n"] > research_max_rounds:
+            if findings_total["n"] == 0:
+                progress(f"[orchestrator] ⚠ 已达最大研究轮次({research_max_rounds})且未获得任何 findings")
+                return {"status": "no_findings",
+                        "message": "已达最大研究轮次且未获得任何 findings。不要调用 write_report,直接用一句话结束(说明未能获取到资料)。"}
             progress(f"[orchestrator] ⚠ 已达最大研究轮次({research_max_rounds}),请直接 write_report 收尾")
             return {"status": "max_rounds_reached",
                     "message": "已达最大研究轮次,请直接 write_report,不要再检索。"}
         progress(f"[orchestrator] dispatch_research 第 {round_counter['n']}/{research_max_rounds} 轮,派发 {len(sub_questions)} 个子问题")
         out = dispatch_research(sub_questions, run_researcher)
+        findings_total["n"] += len(out["findings"])
         progress(f"[orchestrator] dispatch_research 完成 → {len(out['findings'])} 条 findings,{len(out['failures'])} 个失败子问题")
         return out
 
@@ -42,6 +48,10 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
         return {"results": [r.model_dump() for r in results]}
 
     def _write_report(outline: str, verified_findings: list[dict]) -> dict:
+        if not verified_findings:
+            # 防御:无 verified findings 时不调 writer(避免空报告;博查耗尽等场景曾暴露此路径)
+            progress("[orchestrator] ✗ write_report 被拒绝:无 verified findings(避免空报告)")
+            return {"error": "无 verified findings,无法生成报告。不要用空 findings 调用 write_report。"}
         progress(f"[orchestrator] write_report → 让 Writer 综合报告(outline {len(outline)} 字,{len(verified_findings)} 条 verified findings)")
         msg = json.dumps({"outline": outline, "verified_findings": verified_findings},
                          ensure_ascii=False)
