@@ -3,12 +3,12 @@
   "question": "如何设计一个用于评价AI Agent性能的benchmark体系？",
   "success": true,
   "failed": null,
-  "n_findings": 32,
+  "n_findings": 43,
   "n_key_facts": 5,
-  "grounding": 0.703125,
-  "citation": 0.8125,
-  "coverage": 0.8,
-  "hallucination": 0.1875,
+  "grounding": 0.9651162790697675,
+  "citation": 1.0,
+  "coverage": 0.6,
+  "hallucination": 0.0,
   "grounding_available": true,
-  "judge_parse_failures": 6
+  "judge_parse_failures": 0
 }
