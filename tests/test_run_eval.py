@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 from core.config import Config
 from core.schemas import Report, ReportSection
@@ -13,6 +15,31 @@ class FakeGLMClient:
 
     def chat(self, **kw):
         return self._r.pop(0)
+
+
+class ConcurrentFakeJudge:
+    """线程安全 fake:记录并发峰值 active,返回固定对称 verdict(不依赖顺序)。
+    content 同时含 support/source_real/covered → finding 与 key_fact 两类 parser 都接受。"""
+    def __init__(self, content='{"support":"supported","source_real":true,"covered":true,"reason":""}'):
+        self._lock = threading.Lock()
+        self.state = {"active": 0, "max": 0}
+        self._content = content
+
+    def chat(self, **kw):
+        with self._lock:
+            self.state["active"] += 1
+            self.state["max"] = max(self.state["max"], self.state["active"])
+        time.sleep(0.05)
+        with self._lock:
+            self.state["active"] -= 1
+        return LLMResponse(content=self._content)
+
+
+def _history_with_n_findings(n):
+    # claim 必须唯一:extract_findings 按 (claim, source_url) 去重
+    findings = [{"id": f"f{i}", "claim": f"claim {i}", "source_url": "https://x", "excerpt": "e"}
+                for i in range(n)]
+    return [{"role": "tool", "content": json.dumps({"findings": findings})}]
 
 
 def _canned_history_with_findings():
@@ -81,6 +108,53 @@ def test_evaluate_question_zero_findings_coverage_only():
     assert sc["grounding"] is None
     assert sc["grounding_available"] is False
     assert sc["coverage"] == 0.0
+
+
+# ---------- 并发裁判 ----------
+
+def test_evaluate_question_judges_concurrently():
+    judge = ConcurrentFakeJudge()
+    item = {"id": "q", "question": "Q", "key_facts": []}
+    evaluate_question(item, cfg=None, judge_client=judge, judge_concurrency=4,
+                     run_one_fn=lambda q: (_canned_report(), _history_with_n_findings(6)))
+    assert judge.state["max"] >= 2   # 确实并发(当前串行 max=1 → FAIL 驱动实现)
+
+
+def test_evaluate_question_respects_concurrency_cap():
+    judge = ConcurrentFakeJudge()
+    item = {"id": "q", "question": "Q", "key_facts": []}
+    evaluate_question(item, cfg=None, judge_client=judge, judge_concurrency=4,
+                     run_one_fn=lambda q: (_canned_report(), _history_with_n_findings(8)))
+    assert judge.state["max"] <= 4   # 不超上限(max_workers 硬限,确定性)
+
+
+def test_evaluate_question_concurrent_correctness():
+    judge = ConcurrentFakeJudge()
+    item = {"id": "q", "question": "Q", "key_facts": ["k1", "k2", "k3"]}
+    sc = evaluate_question(item, cfg=None, judge_client=judge, judge_concurrency=4,
+                           run_one_fn=lambda q: (_canned_report(), _history_with_n_findings(5)))
+    assert sc["n_findings"] == 5
+    assert sc["grounding"] == 1.0    # 全 supported + real
+    assert sc["coverage"] == 1.0     # 全 covered
+
+
+def test_main_passes_judge_concurrency_from_config(tmp_path):
+    # main 应从 cfg["models"]["judge"]["max_concurrency"] 读并发上限并传入 evaluate_question
+    bench = _bench_with(tmp_path, ["q1"])
+    out = tmp_path / "out"
+    judge = ConcurrentFakeJudge()
+
+    def run_one_many(question):
+        report = Report(sections=[ReportSection(heading="H", content="C")])
+        return report, _history_with_n_findings(8)
+
+    cfg = Config({"thresholds": {"grounding_min": 0.85},
+                  "models": {"judge": {"max_concurrency": 3}}})
+    rc = main(["--benchmark", str(bench), "--results", str(out)],
+              run_one_fn=run_one_many, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert judge.state["max"] <= 3   # config 的 max_concurrency=3 被尊重
+    assert judge.state["max"] >= 2   # 且确实并发(非串行)
 
 
 # ---------- load_benchmark ----------

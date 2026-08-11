@@ -5,6 +5,7 @@
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -38,10 +39,12 @@ def run_one(question: str, cfg, *, client=None, search_client=None):
 
 
 def evaluate_question(item: dict, cfg, *, judge_client,
-                      client=None, search_client=None, run_one_fn=None):
+                      client=None, search_client=None, run_one_fn=None,
+                      judge_concurrency: int = 10):
     """单题评估 → scorecard。
 
     run_one_fn 可注入(测试用,跳过真实 agent 链);为 None 时用真实 run_one。
+    judge_concurrency: judge_finding/judge_key_fact 的并发上限(GLM-5.2 = 10)。
     """
     question = item["question"]
     runner = run_one_fn or (lambda q: run_one(q, cfg, client=client,
@@ -53,16 +56,19 @@ def evaluate_question(item: dict, cfg, *, judge_client,
                 **compute_question_metrics([], [], report_produced=False)}
 
     findings = extract_findings(history)
-    finding_verdicts = [
-        judge_finding(claim=f.get("claim", ""), excerpt=f.get("excerpt", ""),
-                      source_url=f.get("source_url", ""), client=judge_client)
-        for f in findings
-    ]
     text = report_to_text(report)
-    key_fact_verdicts = [
-        judge_key_fact(key_fact=kf, report_text=text, client=judge_client)
-        for kf in item.get("key_facts", [])
-    ]
+    # 并发裁判:GLM-5.2 并发上限内,pool.map 保序,单条异常仍冒泡到 main 单题兜底
+    with ThreadPoolExecutor(max_workers=judge_concurrency) as pool:
+        finding_verdicts = list(pool.map(
+            lambda f: judge_finding(claim=f.get("claim", ""),
+                                    excerpt=f.get("excerpt", ""),
+                                    source_url=f.get("source_url", ""),
+                                    client=judge_client),
+            findings))
+        key_fact_verdicts = list(pool.map(
+            lambda kf: judge_key_fact(key_fact=kf, report_text=text,
+                                      client=judge_client),
+            item.get("key_facts", [])))
     return {"id": item["id"], "question": question,
             **compute_question_metrics(finding_verdicts, key_fact_verdicts,
                                        report_produced=True)}
@@ -146,11 +152,13 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
         return 1
 
     judge_client = judge_client or GLMClient()
+    judge_concurrency = cfg.get("models", {}).get("judge", {}).get("max_concurrency", 10)
     res_dir.mkdir(parents=True, exist_ok=True)
     scorecards = []
     for it in items:
         try:
-            sc = evaluate_question(it, cfg, judge_client=judge_client, run_one_fn=run_one_fn)
+            sc = evaluate_question(it, cfg, judge_client=judge_client,
+                                  run_one_fn=run_one_fn, judge_concurrency=judge_concurrency)
         except Exception as e:
             # 单题异常不中断整批(spec §6 精神):记为失败继续
             print(f"[eval] 题 {it['id']} 评估异常,记为失败继续:{e!r}", file=sys.stderr)

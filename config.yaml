@@ -10,6 +10,7 @@ models:
     base_url: https://open.bigmodel.cn/api/paas/v4   # 智谱 OpenAI 兼容端点(API 版本路径,与模型版本无关)
     temperature: 0.0
     max_tokens: 2048
+    max_concurrency: 10            # GLM-5.2 并发上限(裁判并发,提速 eval)
 
 tools:
   web_search:                      # 博查 Bocha
