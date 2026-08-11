@@ -270,3 +270,28 @@ def test_main_question_error_does_not_abort_run(tmp_path):
     assert bad_sc["failed"] == "error"
     summary = json.loads((out / "scorecard.json").read_text(encoding="utf-8"))
     assert summary["n_questions"] == 2
+
+
+def test_main_runs_questions_concurrently(tmp_path):
+    # 题间并发:question_concurrency>1 → 多题并发跑(非串行)
+    bench = _bench_with(tmp_path, ["q1", "q2", "q3", "q4"])
+    out = tmp_path / "out"
+    lock = threading.Lock()
+    state = {"active": 0, "max": 0}
+
+    def run_one_slow(question):
+        with lock:
+            state["active"] += 1
+            state["max"] = max(state["max"], state["active"])
+        time.sleep(0.1)
+        with lock:
+            state["active"] -= 1
+        return _fake_run_one(question)
+
+    judge = ConcurrentFakeJudge()
+    cfg = Config({"thresholds": {"grounding_min": 0.85},
+                  "eval": {"question_concurrency": 4}})
+    rc = main(["--benchmark", str(bench), "--results", str(out)],
+              run_one_fn=run_one_slow, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert state["max"] >= 2  # 题间确实并发(串行 max=1)

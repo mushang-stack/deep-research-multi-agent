@@ -153,9 +153,10 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
 
     judge_client = judge_client or GLMClient()
     judge_concurrency = cfg.get("models", {}).get("judge", {}).get("max_concurrency", 10)
+    question_concurrency = cfg.get("eval", {}).get("question_concurrency", 1)
     res_dir.mkdir(parents=True, exist_ok=True)
-    scorecards = []
-    for it in items:
+
+    def _eval_one(it):
         try:
             sc = evaluate_question(it, cfg, judge_client=judge_client,
                                   run_one_fn=run_one_fn, judge_concurrency=judge_concurrency)
@@ -170,7 +171,11 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
                   "judge_parse_failures": 0}
         (res_dir / f"{it['id']}.json").write_text(
             json.dumps(sc, ensure_ascii=False, indent=2), encoding="utf-8")
-        scorecards.append(sc)
+        return sc
+
+    # 题间并发(question_concurrency=1 等价串行,向后兼容);pool.map 保序
+    with ThreadPoolExecutor(max_workers=question_concurrency) as pool:
+        scorecards = list(pool.map(_eval_one, items))
 
     summary = aggregate(scorecards, cfg["thresholds"]["grounding_min"])
     (res_dir / "scorecard.json").write_text(

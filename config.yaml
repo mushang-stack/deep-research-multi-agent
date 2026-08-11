@@ -28,3 +28,6 @@ guards:
 
 thresholds:
   grounding_min: 0.85              # 上线门槛:Grounding ≥ 85%(M3 用)
+
+eval:
+  question_concurrency: 3          # 题间并发(5 题 eval 提速;DeepSeek 限流未知,保守 3,可调)
