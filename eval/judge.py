@@ -16,7 +16,8 @@ _FINDING_SYSTEM = """你是严格的来源核查裁判。给定一条研究发�
 1. support: excerpt 是否支撑 claim?取值 "supported"(明确支撑)/ "partial"(部分支撑或间接)/ "unsupported"(不支撑或无关)。
 2. source_real: source_url 是否像真实、相关、可达的来源(非编造 / 非死链 / 非无关)?布尔。
 
-仅输出一行 JSON,不要任何解释或 markdown:
+输出格式(极其重要):直接以 { 开头,只输出一行 JSON。绝对不要任何思考过程、解释、markdown 或代码块。reason 必须是简短纯文本(≤30字,不含双引号、换行、反斜杠),否则会破坏 JSON。
+
 {"support": "supported" | "partial" | "unsupported", "source_real": true | false, "reason": "一句依据"}"""
 
 _KEYFACT_SYSTEM = """你是严格的覆盖度裁判。给定一个关键事实(key_fact)与一份研究报告全文(report),判定报告是否覆盖该关键事实(明确陈述或可直接推出)。
@@ -64,7 +65,9 @@ def judge_finding(*, claim: str, excerpt: str, source_url: str,
 
     v = _ask(client, _FINDING_SYSTEM, user, _parse, parse_retries)
     if v is None:
-        return {"support": "unsupported", "source_real": False,
+        # parse_failed = 裁判输出不可解析(技术失败),非 finding 真无支撑 → 取中性 partial
+        # (source_real 仍兜底 false,幻觉率照计,防幻觉不弱化)
+        return {"support": "partial", "source_real": False,
                 "reason": "judge output unparseable", "parse_failed": True}
     v["parse_failed"] = False
     return v

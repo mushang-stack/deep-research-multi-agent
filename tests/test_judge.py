@@ -40,14 +40,22 @@ def test_judge_finding_extracts_json_from_prose():
     assert v["support"] == "supported" and v["source_real"] is True
 
 
-def test_judge_finding_parse_failure_retries_then_unsupported():
-    # 连续两次不可解析 → 第三次也坏 → 计 unsupported + parse_failed(默认 retries=2 共 3 次)
+def test_judge_finding_parse_failure_counts_partial():
+    # 连续不可解析 → 计 partial + parse_failed(parse_failed 是裁判技术失败,
+    # 非 finding 真无支撑;取中性 partial=0.5 而非归零。source_real 仍兜底 false 防幻觉)
     bad = LLMResponse(content="完全不是 JSON 的散文")
     client = FakeGLMClient([bad, bad, bad])
     v = judge_finding(claim="c", excerpt="e", source_url="https://x", client=client)
-    assert v["support"] == "unsupported"
+    assert v["support"] == "partial"
     assert v["source_real"] is False
     assert v["parse_failed"] is True
+
+
+def test_finding_system_prompt_enforces_strict_json():
+    """parse_failed 是 grounding 损失源,prompt 须强化 JSON:禁思考过程、reason 纯文本。"""
+    from eval.judge import _FINDING_SYSTEM
+    assert "思考" in _FINDING_SYSTEM          # 禁止思考过程
+    assert "纯文本" in _FINDING_SYSTEM        # reason 限纯文本(防破坏 JSON)
 
 
 def test_judge_finding_parse_failure_recovers_on_retry():
