@@ -3,12 +3,12 @@
   "question": "一家企业计划引入AI Agent提升客服效率，应该如何评估是否值得投入？",
   "success": true,
   "failed": null,
-  "n_findings": 0,
+  "n_findings": 35,
   "n_key_facts": 5,
-  "grounding": null,
-  "citation": null,
-  "coverage": 0.0,
-  "hallucination": null,
-  "grounding_available": false,
+  "grounding": 0.9142857142857143,
+  "citation": 1.0,
+  "coverage": 0.6,
+  "hallucination": 0.0,
+  "grounding_available": true,
   "judge_parse_failures": 0
 }
