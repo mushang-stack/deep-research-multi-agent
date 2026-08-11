@@ -1,0 +1,14 @@
+{
+  "id": "q001",
+  "question": "比较RAG和Fine-tuning在企业AI应用中的适用场景和技术限制。",
+  "success": true,
+  "failed": null,
+  "n_findings": 37,
+  "n_key_facts": 5,
+  "grounding": 0.7702702702702703,
+  "citation": 0.8108108108108109,
+  "coverage": 0.8,
+  "hallucination": 0.1891891891891892,
+  "grounding_available": true,
+  "judge_parse_failures": 4
+}
