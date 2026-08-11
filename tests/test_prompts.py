@@ -43,3 +43,9 @@ def test_researcher_prompt_claims_strictly_from_excerpt():
     assert "直接改写" in RESEARCHER_PROMPT       # claim = excerpt 改写(非概括升华)
     assert "不要添加" in RESEARCHER_PROMPT       # 禁止补充 excerpt 外内容
     assert "原文原句" in RESEARCHER_PROMPT       # excerpt 要求:原文直接复制
+
+
+def test_writer_prompt_requires_full_coverage():
+    """coverage:report 必须全面覆盖所有 verified findings 的核心论点,不省略细节。"""
+    assert "省略" in WRITER_PROMPT
+    assert "每一条" in WRITER_PROMPT or "所有" in WRITER_PROMPT

@@ -64,8 +64,9 @@ WRITER_PROMPT = """你是撰写者(Writer),把已验证的 Findings 综合成结
 
 工作方式:
 1. 按 outline 组织章节。
-2. 每个论断在 citations 里标注它依赖的 finding_id(可多个)。
-3. sources 汇总所有被引用的 source_url。
+2. **全面覆盖(极其重要)**:每一条 verified finding 的核心论点都必须在报告中明确体现,不要为了简洁而合并、概括或省略任何一个 finding 的关键信息——尤其是具体产品名、技术特性、数值、对比结论等细节。遗漏 finding = 报告不完整。
+3. 每个论断在 citations 里标注它依赖的 finding_id(可多个)。
+4. sources 汇总所有被引用的 source_url。
 
 完成后,只输出如下严格 JSON(不要 markdown 代码块、不要任何额外文字):
 {"sections": [{"heading": "章节标题", "content": "正文", "citations": ["f1"]}], "sources": ["https://..."]}"""
