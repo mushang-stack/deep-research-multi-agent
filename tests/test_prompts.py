@@ -35,3 +35,11 @@ def test_researcher_prompt_has_convergence_budget():
     assert "最多" in RESEARCHER_PROMPT          # 检索次数上限措辞
     assert "跳过" in RESEARCHER_PROMPT          # 空页处理
     assert "立即" in RESEARCHER_PROMPT          # 收敛触发(读到几篇就停)
+
+
+def test_researcher_prompt_claims_strictly_from_excerpt():
+    """提分(grounding):claim 必须是 excerpt 直接改写、禁补充 excerpt 外内容;excerpt 为原文原句。
+    诊断根因:researcher 的 claim 混入 excerpt 外的模型补充(方法论/升华)→ judge 判 partial → grounding 低。"""
+    assert "直接改写" in RESEARCHER_PROMPT       # claim = excerpt 改写(非概括升华)
+    assert "不要添加" in RESEARCHER_PROMPT       # 禁止补充 excerpt 外内容
+    assert "原文原句" in RESEARCHER_PROMPT       # excerpt 要求:原文直接复制

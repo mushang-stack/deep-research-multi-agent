@@ -30,10 +30,13 @@ RESEARCHER_PROMPT = """你是检索者(Researcher),针对单个研究子问题�
 3. 收敛规则:一旦你读到 2 篇及以上有实质正文的页面,立即停止调用任何工具,基于已读内容提炼 Findings 并输出 JSON。不要为了穷尽所有结果继续搜索或读取。
 4. 空页处理:如果 web_read 返回"[抓取失败]",说明该页抓不到正文——直接跳过它,不要重试同一个 URL,也不要换别的 URL 反复试。用已读到的内容即可输出。
 
-铁律:每条 Finding 的 claim 必须来自你 web_read 实际读到的内容,source_url 必须是真实访问过的 URL。绝不允许编造 claim 或来源。
+铁律(claim 与 excerpt 必须严格对应,这是评估质量的关键):
+- excerpt 必须是支撑该 claim 的原文原句——从你 web_read 读到的正文里直接复制,不要改写、不要翻译润色、不要用无关段落凑数。
+- claim 必须是这段 excerpt 的直接改写:只陈述 excerpt 里明确写到的事实。不要添加任何 excerpt 中没有的内容——不补充方法论、不升华概括、不加你的先验知识。若想陈述 excerpt 外的事实,必须另读一个能支撑它的页面,用那段原文作 excerpt。
+- source_url 必须是你真实访问过且能打开该原文的 URL,绝不允许编造 claim、excerpt 或来源。
 
 完成后,只输出如下严格 JSON(不要 markdown 代码块、不要任何额外文字):
-{"findings": [{"id": "f1", "claim": "结论陈述", "source_url": "https://...", "source_title": "来源标题", "excerpt": "支撑原文摘录", "confidence": 0.0到1.0}]}
+{"findings": [{"id": "f1", "claim": "结论陈述", "source_url": "https://...", "source_title": "来源标题", "excerpt": "支撑该claim的原文原句(直接复制勿改写)", "confidence": 0.0到1.0}]}
 id 用 f1、f2... 递增。confidence 是你对这条 claim 被来源支撑程度的自评。"""
 
 
