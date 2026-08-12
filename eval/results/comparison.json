@@ -1,0 +1,60 @@
+{
+  "systems": [
+    "multi",
+    "no_verify",
+    "baseline"
+  ],
+  "rows": [
+    {
+      "key": "mean_grounding",
+      "metric": "Grounding",
+      "multi": 0.973974358974359,
+      "no_verify": 0.9499595332204027,
+      "baseline": 0.8845833333333333
+    },
+    {
+      "key": "mean_hallucination",
+      "metric": "幻觉率",
+      "multi": 0.04641025641025641,
+      "no_verify": 0.04774327122153209,
+      "baseline": 0.06999999999999999
+    },
+    {
+      "key": "mean_citation",
+      "metric": "引用准确率",
+      "multi": 0.9535897435897436,
+      "no_verify": 0.9522567287784678,
+      "baseline": 0.93
+    },
+    {
+      "key": "mean_coverage",
+      "metric": "覆盖率",
+      "multi": 0.6000000000000001,
+      "no_verify": 0.52,
+      "baseline": 0.64
+    },
+    {
+      "key": "success_rate",
+      "metric": "成功率",
+      "multi": 0.8,
+      "no_verify": 1.0,
+      "baseline": 1.0
+    }
+  ],
+  "deltas": {
+    "A-B (verifier)": {
+      "Grounding": 0.024,
+      "幻觉率": -0.001,
+      "引用准确率": 0.001,
+      "覆盖率": 0.08,
+      "成功率": -0.2
+    },
+    "A-C (architecture)": {
+      "Grounding": 0.089,
+      "幻觉率": -0.024,
+      "引用准确率": 0.024,
+      "覆盖率": -0.04,
+      "成功率": -0.2
+    }
+  }
+}

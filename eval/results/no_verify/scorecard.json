@@ -1,0 +1,13 @@
+{
+  "n_questions": 5,
+  "n_success": 5,
+  "success_rate": 1.0,
+  "mean_grounding": 0.9499595332204027,
+  "mean_citation": 0.9522567287784678,
+  "mean_coverage": 0.52,
+  "mean_hallucination": 0.04774327122153209,
+  "grounding_questions": 5,
+  "grounding_min": 0.85,
+  "passed": true,
+  "total_judge_parse_failures": 4
+}

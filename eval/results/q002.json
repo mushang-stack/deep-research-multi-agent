@@ -1,14 +1,15 @@
 {
   "id": "q002",
   "question": "分析2026年主流AI Coding Agent产品的功能差异，包括Claude Code、Cursor和GitHub Copilot Agent模式。",
-  "success": true,
-  "failed": null,
-  "n_findings": 29,
+  "success": false,
+  "failed": "error",
+  "error": "Escalation('orchestrator hit max_steps=12')",
+  "n_findings": 0,
   "n_key_facts": 5,
-  "grounding": 0.8275862068965517,
-  "citation": 0.8620689655172413,
-  "coverage": 0.8,
-  "hallucination": 0.13793103448275862,
-  "grounding_available": true,
-  "judge_parse_failures": 3
+  "grounding": null,
+  "citation": null,
+  "coverage": null,
+  "hallucination": null,
+  "grounding_available": false,
+  "judge_parse_failures": 0
 }

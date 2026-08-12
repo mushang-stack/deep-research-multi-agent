@@ -3,12 +3,12 @@
   "question": "截至2026年，主流AI Agent开发框架有哪些，它们在架构设计、工具调用和生产部署方面有什么区别？",
   "success": true,
   "failed": null,
-  "n_findings": 33,
+  "n_findings": 39,
   "n_key_facts": 5,
-  "grounding": 1.0,
-  "citation": 0.9393939393939394,
-  "coverage": 0.2,
-  "hallucination": 0.06060606060606061,
+  "grounding": 0.9358974358974359,
+  "citation": 0.9743589743589743,
+  "coverage": 0.4,
+  "hallucination": 0.02564102564102564,
   "grounding_available": true,
-  "judge_parse_failures": 0
+  "judge_parse_failures": 1
 }

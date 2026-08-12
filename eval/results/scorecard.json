@@ -1,13 +1,13 @@
 {
   "n_questions": 5,
-  "n_success": 5,
-  "success_rate": 1.0,
-  "mean_grounding": 0.9284944142439551,
-  "mean_citation": 0.9538409680790103,
+  "n_success": 4,
+  "success_rate": 0.8,
+  "mean_grounding": 0.973974358974359,
+  "mean_citation": 0.9535897435897436,
   "mean_coverage": 0.6000000000000001,
-  "mean_hallucination": 0.04615903192098965,
-  "grounding_questions": 5,
+  "mean_hallucination": 0.04641025641025641,
+  "grounding_questions": 4,
   "grounding_min": 0.85,
   "passed": true,
-  "total_judge_parse_failures": 3
+  "total_judge_parse_failures": 2
 }
