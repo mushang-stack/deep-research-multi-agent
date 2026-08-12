@@ -23,6 +23,7 @@ guards:
   agent_max_steps: 12              # 单 agent 最大循环步数(防无限循环/成本失控)
   researcher_max_steps: 6          # 单 researcher 步数(M2 回修:诊断显示理想路径 4-5 步,6 步有余量)
   research_max_rounds: 3           # Orchestrator 最大研究轮次(M2 用)
+  baseline_max_steps: 16          # 单 agent 基线步数(M3 后续 C:≥ agent_max_steps,故意宽裕抗质疑)
   request_max_retries: 3           # 瞬时错误重试次数
   request_backoff_base: 1.5        # 指数退避基数(秒)
 
