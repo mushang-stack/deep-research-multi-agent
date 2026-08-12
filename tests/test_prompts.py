@@ -1,5 +1,5 @@
 from agents.prompts import (
-    ORCHESTRATOR_PROMPT, RESEARCHER_PROMPT, VERIFIER_PROMPT, WRITER_PROMPT,
+    BASELINE_PROMPT, ORCHESTRATOR_PROMPT, RESEARCHER_PROMPT, VERIFIER_PROMPT, WRITER_PROMPT,
 )
 
 
@@ -49,3 +49,10 @@ def test_writer_prompt_requires_full_coverage():
     """coverage:report 必须全面覆盖所有 verified findings 的核心论点,不省略细节。"""
     assert "省略" in WRITER_PROMPT
     assert "每一条" in WRITER_PROMPT or "所有" in WRITER_PROMPT
+
+
+def test_baseline_prompt_nonempty_and_mentions_tools():
+    assert isinstance(BASELINE_PROMPT, str) and len(BASELINE_PROMPT) > 100
+    assert "web_search" in BASELINE_PROMPT
+    assert "web_read" in BASELINE_PROMPT
+    assert "write_report" in BASELINE_PROMPT
