@@ -51,6 +51,12 @@ def test_render_table_contains_labels_and_delta_name():
     assert "A-C (architecture)" in txt
 
 
+def test_compare_no_multi_yields_empty_deltas():
+    # 没有 multi → 不报任何 delta(无可比基线)
+    cmp = compare({"no_verify": _sc(0.8), "baseline": _sc(0.7)})
+    assert cmp["deltas"] == {}
+
+
 def test_compare_cli_writes_comparison_json(tmp_path):
     # 造两份 scorecard,跑 CLI → 产 comparison.json
     (tmp_path / "scorecard.json").write_text(json.dumps(_sc(0.9, 0.05)), encoding="utf-8")

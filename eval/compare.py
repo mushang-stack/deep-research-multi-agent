@@ -56,7 +56,7 @@ def render_table(cmp: dict) -> str:
         for k, v in d.items():
             if v is None:
                 continue
-            sign = "+" if v >= 0 else ""
+            sign = "+" if v > 0 else ""
             parts.append(f"{k}: {sign}{v}")
         lines.append(f"{name} → " + ", ".join(parts))
     return "\n".join(lines)
@@ -77,13 +77,20 @@ def main(argv=None, *, results_dir=None) -> int:
         if not p.exists():
             print(f"[compare] 跳过缺失的 {s}:{p}", file=sys.stderr)
             continue
-        scorecards[s] = json.loads(p.read_text(encoding="utf-8"))
+        try:
+            scorecards[s] = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"[compare] {s} 的 scorecard JSON 解析失败({p}):{e}", file=sys.stderr)
+            continue
     if not scorecards:
         print("无可用 scorecard。先跑 python -m eval.run_eval --system <multi|no_verify|baseline>。",
               file=sys.stderr)
         return 1
 
     cmp = compare(scorecards)
+    if not cmp["deltas"]:
+        print("[compare] 警告:无 multi system 或无可比对象,deltas 为空(数值表仍写入 comparison.json)。",
+              file=sys.stderr)
     print(render_table(cmp))
     (base / "comparison.json").write_text(
         json.dumps(cmp, ensure_ascii=False, indent=2), encoding="utf-8")
