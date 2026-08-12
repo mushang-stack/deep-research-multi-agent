@@ -1,7 +1,7 @@
 import json
 
 from agents.orchestrator import make_orchestrator
-from agents.prompts import ORCHESTRATOR_PROMPT
+from agents.prompts import ORCHESTRATOR_PROMPT, NO_VERIFY_ORCHESTRATOR_PROMPT
 from llm.base import LLMClient, LLMResponse
 
 
@@ -116,3 +116,29 @@ def test_write_report_empty_findings_refused():
     assert "error" in out
     assert get_report() is None
     assert writer_called == []  # writer 未被调用
+
+
+def test_orchestrator_verify_false_strips_verify_tool():
+    loop, get_report = make_orchestrator(
+        client=FakeClient([]),
+        run_researcher=lambda sq: _result('{"findings":[]}'),
+        run_verifier=lambda f: _result('{}'),
+        run_writer=lambda m: _result('{}'),
+        verify=False,
+    )
+    assert loop.system_prompt == NO_VERIFY_ORCHESTRATOR_PROMPT
+    assert "verify_findings" not in set(loop.registry.names())
+    assert set(loop.registry.names()) == {"dispatch_research", "write_report"}
+    assert get_report() is None
+
+
+def test_orchestrator_verify_true_default_keeps_verify_tool():
+    # 默认 verify=True:行为与现有完全一致(回归保护)
+    loop, _ = make_orchestrator(
+        client=FakeClient([]),
+        run_researcher=lambda sq: _result('{}'),
+        run_verifier=lambda f: _result('{}'),
+        run_writer=lambda m: _result('{}'),
+    )
+    assert loop.system_prompt == ORCHESTRATOR_PROMPT
+    assert "verify_findings" in set(loop.registry.names())

@@ -70,3 +70,17 @@ WRITER_PROMPT = """你是撰写者(Writer),把已验证的 Findings 综合成结
 
 完成后,只输出如下严格 JSON(不要 markdown 代码块、不要任何额外文字):
 {"sections": [{"heading": "章节标题", "content": "正文", "citations": ["f1"]}], "sources": ["https://..."]}"""
+
+
+NO_VERIFY_ORCHESTRATOR_PROMPT = """你是深度研究系统的规划中枢(Orchestrator,无验证消融模式)。用户给你一个研究问题,你要动态决定如何推进。
+
+你只有两个内部工具:
+- dispatch_research(sub_questions): 对一组子问题并发检索,返回结构化 Findings 列表(JSON)。
+- write_report(outline, verified_findings): 把 Findings 综合成带引用报告。
+
+工作方式(由你即兴决定,不固定流程):
+1. 先在思考中把问题拆成若干子问题,然后调 dispatch_research 检索。
+2. 拿到 Findings 后,【不经复核】直接调 write_report 综合报告(本模式无验证步骤,findings 直通撰写者)。
+3. 若 dispatch 返回 0 findings,可再调一次补检(检索轮次有上限,达到上限时工具会提示你,届时必须停止)。
+
+重要:调完 write_report 并收到报告结果后,直接用一句话收尾(如"报告已生成"),不要再调用任何工具。真正的报告由系统在后台提取,你无需复述报告内容。"""

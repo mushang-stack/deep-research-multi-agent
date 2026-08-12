@@ -7,11 +7,12 @@ from core.agent_loop import AgentLoop
 from core.tool_registry import ToolRegistry
 from .dispatch import dispatch_research, parse_results, parse_report
 from .observe import progress
-from .prompts import ORCHESTRATOR_PROMPT
+from .prompts import ORCHESTRATOR_PROMPT, NO_VERIFY_ORCHESTRATOR_PROMPT
 
 
 def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
-                      max_steps: int = 12, research_max_rounds: int = 3):
+                      max_steps: int = 12, research_max_rounds: int = 3,
+                      verify: bool = True):
     """返回 (orchestrator_loop, get_report)。
 
     run_researcher(sub_question) -> AgentResult   (content = Findings JSON)
@@ -65,6 +66,8 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
         holder["report"] = report  # 机制级确定性提取
         return report.model_dump()
 
+    prompt = ORCHESTRATOR_PROMPT if verify else NO_VERIFY_ORCHESTRATOR_PROMPT
+
     reg = ToolRegistry()
     reg.register(
         "dispatch_research", _dispatch_research,
@@ -73,13 +76,14 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
                     "properties": {"sub_questions": {"type": "array", "items": {"type": "string"}}},
                     "required": ["sub_questions"]},
     )
-    reg.register(
-        "verify_findings", _verify_findings,
-        description="复核一批 findings 是否有来源支撑,返回 {results:[{finding_id,verdict,reason,...}]}。",
-        parameters={"type": "object",
-                    "properties": {"findings": {"type": "array", "items": {"type": "object"}}},
-                    "required": ["findings"]},
-    )
+    if verify:
+        reg.register(
+            "verify_findings", _verify_findings,
+            description="复核一批 findings 是否有来源支撑,返回 {results:[{finding_id,verdict,reason,...}]}。",
+            parameters={"type": "object",
+                        "properties": {"findings": {"type": "array", "items": {"type": "object"}}},
+                        "required": ["findings"]},
+        )
     reg.register(
         "write_report", _write_report,
         description="基于已验证 findings 综合带引用报告。调用后用一句话收尾,不再调任何工具。",
@@ -89,7 +93,7 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
                     "required": ["outline", "verified_findings"]},
     )
 
-    loop = AgentLoop(client=client, system_prompt=ORCHESTRATOR_PROMPT,
+    loop = AgentLoop(client=client, system_prompt=prompt,
                      registry=reg, max_steps=max_steps, name="orchestrator")
 
     def get_report():
