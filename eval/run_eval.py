@@ -12,6 +12,7 @@ import yaml
 from dotenv import load_dotenv
 
 from agents.system import build_system
+from agents.baseline import build_baseline_system
 from core.config import load_config
 from core.schemas import Report
 from llm.glm_client import GLMClient
@@ -31,16 +32,28 @@ def report_to_text(report: Report) -> str:
     return "\n\n".join(parts)
 
 
-def run_one(question: str, cfg, *, client=None, search_client=None):
+def _build_fn_for(system: str):
+    """system 名 → build 函数。multi/no_verify/baseline。供 run_one 与测试复用。"""
+    if system == "multi":
+        return build_system
+    if system == "no_verify":
+        return lambda cfg, **kw: build_system(cfg, verify=False, **kw)
+    if system == "baseline":
+        return build_baseline_system
+    raise ValueError(f"unknown system: {system!r}")
+
+
+def run_one(question: str, cfg, *, client=None, search_client=None, system: str = "multi"):
     """跑一次系统,返回 (report, history)。report 可能为 None。"""
-    loop, get_report = build_system(cfg, client=client, search_client=search_client)
+    build_fn = _build_fn_for(system)
+    loop, get_report = build_fn(cfg, client=client, search_client=search_client)
     result = loop.run(question)
     return get_report(), result.history
 
 
 def evaluate_question(item: dict, cfg, *, judge_client,
                       client=None, search_client=None, run_one_fn=None,
-                      judge_concurrency: int = 10):
+                      judge_concurrency: int = 10, system: str = "multi"):
     """单题评估 → scorecard。
 
     run_one_fn 可注入(测试用,跳过真实 agent 链);为 None 时用真实 run_one。
@@ -48,7 +61,7 @@ def evaluate_question(item: dict, cfg, *, judge_client,
     """
     question = item["question"]
     runner = run_one_fn or (lambda q: run_one(q, cfg, client=client,
-                                              search_client=search_client))
+                                              search_client=search_client, system=system))
     report, history = runner(question)
 
     if report is None:
@@ -130,14 +143,19 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
         prog="python -m eval.run_eval",
         description="质量评估:跑基准集 → GLM 逐条裁判 → scorecard + 上线门槛")
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 题")
+    parser.add_argument("--system", choices=["multi", "no_verify", "baseline"], default="multi",
+                        help="评估的系统配置:multi=完整 / no_verify=消融(去 verifier) / baseline=单 agent")
     parser.add_argument("--only", default=None, help="只跑指定 id 的题")
     parser.add_argument("--benchmark", default=None, help="题库目录(默认 eval/benchmark)")
     parser.add_argument("--results", default=None, help="结果输出目录(默认 eval/results)")
     args = parser.parse_args(argv)
 
     cfg = cfg or load_config()
+    system = args.system
     bench_dir = args.benchmark or benchmark_dir or (_EVAL_DIR / "benchmark")
     res_dir = Path(args.results or results_dir or (_EVAL_DIR / "results"))
+    if system != "multi":
+        res_dir = res_dir / system
 
     items = load_benchmark(bench_dir)
     if args.only:
@@ -159,7 +177,8 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
     def _eval_one(it):
         try:
             sc = evaluate_question(it, cfg, judge_client=judge_client,
-                                  run_one_fn=run_one_fn, judge_concurrency=judge_concurrency)
+                                  run_one_fn=run_one_fn, judge_concurrency=judge_concurrency,
+                                  system=system)
         except Exception as e:
             # 单题异常不中断整批(spec §6 精神):记为失败继续
             print(f"[eval] 题 {it['id']} 评估异常,记为失败继续:{e!r}", file=sys.stderr)

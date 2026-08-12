@@ -4,9 +4,9 @@ import time
 
 from core.config import Config
 from core.schemas import Report, ReportSection
-from llm.base import LLMResponse
+from llm.base import LLMClient, LLMResponse
 
-from eval.run_eval import evaluate_question, load_benchmark, main, report_to_text
+from eval.run_eval import _build_fn_for, evaluate_question, load_benchmark, main, report_to_text
 
 
 class FakeGLMClient:
@@ -295,3 +295,73 @@ def test_main_runs_questions_concurrently(tmp_path):
               run_one_fn=run_one_slow, judge_client=judge, cfg=cfg)
     assert rc == 0
     assert state["max"] >= 2  # 题间确实并发(串行 max=1)
+
+
+# ---------- --system flag (Task 5) ----------
+
+
+class _FakeGenClient(LLMClient):
+    def chat(self, **kw):
+        raise AssertionError("build 阶段不应调 chat")
+
+
+class _NoopSearch:
+    def search(self, query):
+        return []
+
+
+def _cfg_for_build():
+    return Config({"models": {"generator": {}},
+                   "tools": {"web_search": {}, "web_read": {"max_chars": 8000}},
+                   "guards": {"agent_max_steps": 12, "research_max_rounds": 3}})
+
+
+def test_build_fn_for_multi_and_baseline_identity():
+    from agents.system import build_system
+    from agents.baseline import build_baseline_system
+    assert _build_fn_for("multi") is build_system
+    assert _build_fn_for("baseline") is build_baseline_system
+
+
+def test_build_fn_for_no_verify_strips_verify_tool():
+    cfg = _cfg_for_build()
+    loop_nv, _ = _build_fn_for("no_verify")(cfg, client=_FakeGenClient(), search_client=_NoopSearch())
+    assert "verify_findings" not in set(loop_nv.registry.names())
+    loop_m, _ = _build_fn_for("multi")(cfg, client=_FakeGenClient(), search_client=_NoopSearch())
+    assert "verify_findings" in set(loop_m.registry.names())
+
+
+def test_build_fn_for_unknown_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        _build_fn_for("bogus")
+
+
+def test_main_system_baseline_writes_to_subdir(tmp_path):
+    bench = _bench_with(tmp_path, ["q1"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--system", "baseline"],
+              results_dir=out, run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert (out / "baseline" / "q1.json").exists()
+    assert (out / "baseline" / "scorecard.json").exists()
+
+
+def test_main_system_multi_writes_to_root_no_subdir(tmp_path):
+    bench = _bench_with(tmp_path, ["q1"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--system", "multi"],
+              results_dir=out, run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert (out / "q1.json").exists()
+    assert not (out / "multi").exists()
