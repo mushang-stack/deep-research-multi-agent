@@ -365,3 +365,17 @@ def test_main_system_multi_writes_to_root_no_subdir(tmp_path):
     assert rc == 0
     assert (out / "q1.json").exists()
     assert not (out / "multi").exists()
+
+
+def test_main_system_baseline_with_explicit_results_flag(tmp_path):
+    bench = _bench_with(tmp_path, ["q1"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}'),
+        LLMResponse(content='{"covered":true,"reason":""}'),
+    ])
+    cfg = Config({"thresholds": {"grounding_min": 0.85}})
+    rc = main(["--benchmark", str(bench), "--system", "baseline", "--results", str(out)],
+              run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    assert (out / "baseline" / "q1.json").exists()

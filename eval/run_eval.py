@@ -147,7 +147,8 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
                         help="评估的系统配置:multi=完整 / no_verify=消融(去 verifier) / baseline=单 agent")
     parser.add_argument("--only", default=None, help="只跑指定 id 的题")
     parser.add_argument("--benchmark", default=None, help="题库目录(默认 eval/benchmark)")
-    parser.add_argument("--results", default=None, help="结果输出目录(默认 eval/results)")
+    parser.add_argument("--results", default=None,
+                        help="结果输出根目录(默认 eval/results);非 multi 系统自动追加子目录")
     args = parser.parse_args(argv)
 
     cfg = cfg or load_config()
