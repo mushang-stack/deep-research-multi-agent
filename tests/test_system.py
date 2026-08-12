@@ -86,3 +86,25 @@ def test_build_system_injects_researcher_max_steps(tmp_path, monkeypatch):
 
     assert captured["max_steps"] == 6        # researcher 注入了专用步数
     assert loop.max_steps == 12              # orchestrator 仍用 agent_max_steps
+
+
+class _FakeClientForVerify(LLMClient):
+    def chat(self, **kw):
+        raise AssertionError("build 阶段不应调 chat")
+
+
+class _FakeSearch:
+    def search(self, query):
+        return []
+
+
+def test_build_system_verify_false_strips_verify_tool(tmp_path):
+    cfg = _write_cfg(tmp_path)
+    loop, _ = build_system(cfg, client=_FakeClientForVerify(), search_client=_FakeSearch(), verify=False)
+    assert "verify_findings" not in set(loop.registry.names())
+
+
+def test_build_system_verify_true_default_keeps_verify_tool(tmp_path):
+    cfg = _write_cfg(tmp_path)
+    loop, _ = build_system(cfg, client=_FakeClientForVerify(), search_client=_FakeSearch())
+    assert "verify_findings" in set(loop.registry.names())

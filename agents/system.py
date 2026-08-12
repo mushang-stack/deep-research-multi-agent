@@ -13,7 +13,7 @@ from .observe import progress
 
 
 def build_system(config: Config, *, client: LLMClient | None = None,
-                 search_client=None):
+                 search_client=None, verify: bool = True):
     """组装整个系统,返回 (orchestrator_loop, get_report)。
 
     client / search_client 可注入(测试用 fake);为 None 时按 config + env 构造真实 client。
@@ -54,5 +54,5 @@ def build_system(config: Config, *, client: LLMClient | None = None,
     return make_orchestrator(
         client=client,
         run_researcher=_run_researcher, run_verifier=_run_verifier, run_writer=_run_writer,
-        max_steps=max_steps, research_max_rounds=research_max_rounds,
+        max_steps=max_steps, research_max_rounds=research_max_rounds, verify=verify,
     )
