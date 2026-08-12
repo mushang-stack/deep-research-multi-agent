@@ -331,6 +331,14 @@ def test_build_fn_for_no_verify_strips_verify_tool():
     assert "verify_findings" in set(loop_m.registry.names())
 
 
+def test_build_fn_for_baseline_builds_baseline_toolset():
+    # 实际构建 baseline loop(_cfg_for_build 不含 baseline_max_steps → 走 .get 默认,顺带验向后兼容)
+    cfg = _cfg_for_build()
+    loop, _ = _build_fn_for("baseline")(cfg, client=_FakeGenClient(), search_client=_NoopSearch())
+    assert set(loop.registry.names()) == {"web_search", "web_read", "write_report"}
+    assert loop.name == "baseline"
+
+
 def test_build_fn_for_unknown_raises():
     import pytest
     with pytest.raises(ValueError):

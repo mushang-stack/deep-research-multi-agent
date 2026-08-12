@@ -18,7 +18,11 @@ def _delta(a: dict, b: dict) -> dict:
     out = {}
     for key, label in _METRICS:
         va, vb = a.get(key), b.get(key)
-        out[label] = round(va - vb, 3) if isinstance(va, (int, float)) and isinstance(vb, (int, float)) else None
+        if isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+            v = round(va - vb, 3)
+            out[label] = 0.0 if v == 0 else v  # 规范化 -0.0 → 0.0,避免渲染 "+-0.0"/"-0.0"
+        else:
+            out[label] = None
     return out
 
 
@@ -63,6 +67,12 @@ def render_table(cmp: dict) -> str:
 
 
 def main(argv=None, *, results_dir=None) -> int:
+    # Windows 控制台默认 GBK,强制 stdout/stderr UTF-8,避免中文/→ 触发 UnicodeEncodeError(同 run_eval)
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(prog="python -m eval.compare",
                                      description="对比多 system 的 scorecard(Δ + 表)")
     parser.add_argument("--systems", default="multi,no_verify,baseline",
