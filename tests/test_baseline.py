@@ -72,6 +72,20 @@ def test_findings_extractable_via_same_trace():
     assert findings[0]["claim"] == "投机解码加速推理"
 
 
+def test_write_report_partial_bad_findings_passes_good_ones():
+    partial = [
+        {"id": "f1", "claim": "好的", "source_url": "https://x", "source_title": "T",
+         "excerpt": "摘录", "confidence": 0.9},
+        {"claim": "缺字段"},  # 缺 id/source_url,Finding 校验失败 → 跳过
+    ]
+    client = FakeClient([LLMResponse(content=_REPORT_JSON)])
+    loop, get_report = make_baseline(client=client, search_client=_FakeSearch())
+    out = loop.registry.execute("write_report", {"outline": "大纲", "findings": partial})
+    assert "findings" in out
+    assert len(out["findings"]) == 1  # 只保留那条合法的
+    assert get_report() is not None
+
+
 def test_baseline_loop_runs_and_produces_report_with_traceable_findings():
     # 完整 loop:baseline 直接调 write_report(跳过搜索)→ 内部 writer 成文 → 收尾
     client = FakeClient([

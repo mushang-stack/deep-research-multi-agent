@@ -4,7 +4,9 @@ write_report 内部调 make_writer(复用、无工具)把 agent 编译的 findin
 并返回 {"findings":[...]} 进 history 供 eval/trace 抽取 → 三档 trace 通用。"""
 import json
 
+from llm.base import LLMClient
 from core.agent_loop import AgentLoop
+from core.config import Config
 from .dispatch import parse_findings, parse_report
 from .observe import progress
 from .prompts import BASELINE_PROMPT
@@ -26,6 +28,7 @@ def make_baseline(*, client, search_client, max_chars: int = 8000,
         if not findings:
             progress("[baseline] ✗ write_report 被拒绝:无 findings")
             return {"error": "无 findings,无法生成报告。不要用空 findings 调用 write_report。"}
+        # round-trip 经 parse_findings:复用 dispatch 层容错(跳过畸形项),与多 agent 口径一致
         parsed = parse_findings(json.dumps({"findings": findings}, ensure_ascii=False))
         if not parsed:
             progress("[baseline] ✗ write_report:findings 全部不合法")
@@ -64,7 +67,7 @@ def make_baseline(*, client, search_client, max_chars: int = 8000,
     return loop, get_report
 
 
-def build_baseline_system(config, *, client=None, search_client=None):
+def build_baseline_system(config: Config, *, client: LLMClient | None = None, search_client=None):
     """从 config 组装单 agent 基线,返回 (loop, get_report)。签名与 build_system 对齐。"""
     from llm.deepseek_client import DeepSeekClient
     from tools.web_search import BochaSearchClient
