@@ -33,11 +33,11 @@
 - `eval/run_eval.py`:`run_one` 建 sink 注入;`evaluate_question` 用 `CountingClient` 包 judge_client + 计裁判墙钟;逐题结果 JSON 加 `telemetry` 字段;`scorecard.json` 加聚合;控制台加遥测表。
 - `config.yaml`:新增 `pricing` 段(USD/1M tokens,注明截至 2026-08 公开标价·近似·可调)。
 - 全套 mock 测试 + README 加"运维遥测"节。
+- **真跑 multi 5 题**(中等档)→ 把真实 telemetry(单题成本/总墙钟/researcher平均步数)填进 README 当样例;可先 `--limit 3` 验证量级再全跑。
 
-**不做(留后续 / 拉伸):**
-- compare.py 的遥测 Δ(多 agent vs baseline 成本/墙钟/步数对比)——**拉伸项**,plan 末尾再定是否纳入本期。
-- 真跑一次 3 档 × 5 题出 README 真实样例——**拉伸项**,烧 API 预算,plan 末尾拍板。
-- 持续监控 / 时间序列 / dashboard(M4 Streamlit)/ 统计显著性。
+**不做(留后续):**
+- compare.py 的遥测 Δ(多 agent vs baseline 成本/墙钟/步数对比)——架构价值故事现有质量 `comparison.json` 已讲(Grounding Δ +0.089),本期不重复。
+- 三档遥测对比真跑(15 题)、持续监控 / 时间序列 / dashboard(M4 Streamlit)/ 统计显著性。
 
 ---
 
@@ -241,7 +241,7 @@ tests/
 - [ ] `pytest -q` 全绿(现有 + 新增,全 mock)
 - [ ] `test_telemetry` / `test_agent_loop` 扩 / `test_run_eval` 扩 覆盖 §5 全部点
 - [ ] README 加"运维遥测"节(三柱口径 + 方法论 + 单点埋点设计 + 成本估算说明)
-- [ ] **拉伸(二选一或全做,plan 末尾定):** ① compare.py 遥测 Δ;② 真跑一次出 README 真实样例
+- [ ] **真跑 multi 5 题** → README "运维遥测"节填入真实 telemetry 样例(单题成本/总墙钟/researcher平均步数);先 `--limit 3` 验证量级
 
 ---
 
@@ -252,7 +252,7 @@ tests/
 - **AgentResult.usage 行为变更:** 由末步改聚合是修正(更准),但属对外字段语义变化;若有外部消费者需同步。本仓内仅 eval/trace 等不读 usage,影响面可控。
 - **利用率口径单一:** 本期只做步数效率,未含并发吃满度/工具结构/token 效率——这些是更丰满的运维故事,留后续(可作 M4 或简历加分项扩展)。
 - **裁判成本归到"评估链路":** 与 spec §5.2③ 一致(产品不计裁判)。但若把 eval 也视作系统一部分,可另报"含裁判总成本"——config/报告可扩展,本期取分列。
-- **真跑成本:** 3 档 × 5 题 = 15 题全集(DeepSeek + 博查 + GLM);可先 `--limit 3` 跑趋势再决定全跑。
+- **真跑成本:** 中等档 = multi 5 题(DeepSeek + 博查 + GLM);可先 `--limit 3` 验证量级再全跑。三档遥测对比(15 题)与 compare 遥测 Δ 留后续。
 
 ---
 
@@ -273,4 +273,4 @@ tests/
 
 **4. 歧义检查:** "利用率"明确收窄为步数效率(§0/§2/§8);"成本"明确分产品/评估两链路(§2);"触顶"明确 hit_max 在 raise 前记(§3.3/§6);"一题一 sink"明确生命周期与并发隔离(§3.1/§6)。
 
-**5. Scope 检查:** 聚焦三柱遥测(sink + 两埋点 + pricing + eval 产物 + 测试 + README),compare Δ 与真跑明确划为拉伸,单个施工图可覆盖。
+**5. Scope 检查:** 聚焦三柱遥测(sink + 两埋点 + pricing + eval 产物 + 测试)+ multi 5 题真跑填 README 样例;compare 遥测 Δ 与三档对比(15 题)明确划出,单个施工图可覆盖。
