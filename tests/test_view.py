@@ -119,3 +119,13 @@ def test_telemetry_tiles_max_steps_zero_and_no_pricing():
 
 def test_render_telemetry_md_empty_rollup_returns_empty():
     assert render_telemetry_md({}, {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28}}) == ""
+
+
+def test_run_done_icon_reflects_success():
+    # 失败的 run_done 不应显示绿勾 ✓(跨层:_ICONS 按 kind,_clean_text 剥 ✗)
+    ok = timeline_rows([{"kind": "run_done", "role": None, "text": "[done] ✓ 报告生成",
+                         "payload": {"success": True}, "ts": 0.0}])
+    fail = timeline_rows([{"kind": "run_done", "role": None, "text": "[done] ✗ 失败",
+                           "payload": {"success": False}, "ts": 0.0}])
+    assert ok[0]["icon"] == "✓"
+    assert fail[0]["icon"] == "✗"

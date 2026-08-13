@@ -55,13 +55,20 @@ def _parallel_badges(events):
     return badges
 
 
+def _icon_for(e) -> str:
+    """run_done 的图标按 payload.success 取 ✓/✗(其余按 _ICONS)。避免失败显示绿勾。"""
+    if e["kind"] == "run_done":
+        return "✓" if e.get("payload", {}).get("success") else "✗"
+    return _ICONS.get(e["kind"], "·")
+
+
 def timeline_rows(events):
     """events: list[dict](EventSink.snapshot / trace)。返回展示行列表。"""
     badges = _parallel_badges(events)
     rows = []
     for idx, e in enumerate(events):
         rows.append({
-            "icon": _ICONS.get(e["kind"], "·"),
+            "icon": _icon_for(e),
             "role": e.get("role"),
             "text": e.get("text", ""),
             "kind": e["kind"],
