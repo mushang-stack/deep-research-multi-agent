@@ -233,3 +233,12 @@ def test_build_baseline_system_threads_recorder():
     loop, _ = build_baseline_system(_cfg_for_build(), client=_FakeGen(),
                                     search_client=_DummySearch(), recorder=sink)
     assert loop.recorder is sink
+
+
+def test_config_has_pricing_section():
+    from core.config import load_config
+    pricing = load_config()["pricing"]
+    assert "deepseek" in pricing and "glm" in pricing
+    for m in ("deepseek", "glm"):
+        assert pricing[m]["input_per_1m"] > 0
+        assert pricing[m]["output_per_1m"] > 0

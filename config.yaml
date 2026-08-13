@@ -32,3 +32,11 @@ thresholds:
 
 eval:
   question_concurrency: 3          # 题间并发(5 题 eval 提速;DeepSeek 限流未知,保守 3,可调)
+
+pricing:                           # 成本估算单价(USD/1M tokens);公开标价·截至 2026-08·近似·可调
+  deepseek:                        # deepseek-chat=V4-Flash;取 cache-miss(保守,不假设命中)
+    input_per_1m: 0.14             #   api-docs.deepseek.com/quick_start/pricing
+    output_per_1m: 0.28
+  glm:                             # GLM-5.2 实标未公开,暂按同族 GLM-4.5(¥2/¥8 per 1M)@7.2 换算
+    input_per_1m: 0.28             #   bigmodel.cn/pricing;实标公布后更新
+    output_per_1m: 1.12
