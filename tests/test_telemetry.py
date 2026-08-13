@@ -112,3 +112,58 @@ def test_counting_client_concurrent_safe():
     snap = jc.snapshot()
     assert snap["calls"] == 100
     assert snap["prompt_tokens"] == 100
+
+
+from core.telemetry import build_telemetry, aggregate_telemetry
+
+
+def _rollup():
+    return {
+        "researcher": {"name": "researcher", "n": 3, "total_steps": 12, "max_steps": 6,
+                       "prompt_tokens": 8000, "completion_tokens": 1500, "wall_s": 18.0,
+                       "hit_max": 0, "mean_steps": 4.0},
+        "writer": {"name": "writer", "n": 1, "total_steps": 1, "max_steps": 12,
+                   "prompt_tokens": 1500, "completion_tokens": 1200, "wall_s": 2.0,
+                   "hit_max": 0, "mean_steps": 1.0},
+    }
+
+
+def test_build_telemetry_structure_and_cost():
+    pricing = {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28},
+               "glm": {"input_per_1m": 0.28, "output_per_1m": 1.12}}
+    judge = {"calls": 27, "prompt_tokens": 9000, "completion_tokens": 800}
+    t = build_telemetry(_rollup(), judge, judge_wall_s=6.0,
+                        question_wall_s=42.0, pricing=pricing)
+    assert t["wall_s"] == 42.0
+    assert t["generator"]["totals"]["prompt_tokens"] == 9500
+    assert t["generator"]["totals"]["completion_tokens"] == 2700
+    assert t["generator"]["totals"]["cost_usd"] == pytest.approx(9500 / 1e6 * 0.14 + 2700 / 1e6 * 0.28)
+    assert t["judge"]["cost_usd"] == pytest.approx(9000 / 1e6 * 0.28 + 800 / 1e6 * 1.12)
+    assert t["judge"]["calls"] == 27
+    assert t["cost_usd"]["total"] == pytest.approx(
+        t["generator"]["totals"]["cost_usd"] + t["judge"]["cost_usd"])
+    assert t["utilization"]["researcher"]["budget_used"] == pytest.approx(4.0 / 6)
+    assert t["utilization"]["researcher"]["hit_max"] == 0
+
+
+def test_build_telemetry_pricing_none_costs_null():
+    t = build_telemetry(_rollup(), {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0},
+                        judge_wall_s=0.0, question_wall_s=1.0, pricing=None)
+    assert t["cost_usd"]["generator"] is None
+    assert t["cost_usd"]["judge"] is None
+    assert t["cost_usd"]["total"] is None
+
+
+def test_aggregate_telemetry_two_questions():
+    pricing = {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28},
+               "glm": {"input_per_1m": 0.28, "output_per_1m": 1.12}}
+    t1 = build_telemetry(_rollup(), {"calls": 10, "prompt_tokens": 1000, "completion_tokens": 100},
+                         3.0, 40.0, pricing)
+    t2 = build_telemetry(_rollup(), {"calls": 20, "prompt_tokens": 2000, "completion_tokens": 200},
+                         6.0, 44.0, pricing)
+    agg = aggregate_telemetry([t1, t2])
+    assert agg["n_questions"] == 2
+    assert agg["mean_wall_s"] == 42.0
+    assert agg["total_cost_usd"]["total"] == pytest.approx(
+        t1["cost_usd"]["total"] + t2["cost_usd"]["total"])
+    assert agg["agents"]["researcher"]["mean_steps"] == 4.0

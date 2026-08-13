@@ -94,3 +94,69 @@ class CountingClient(LLMClient):
             return {"calls": self.calls,
                     "prompt_tokens": self.prompt_tokens,
                     "completion_tokens": self.completion_tokens}
+
+
+def build_telemetry(gen_rollup, judge_stat, judge_wall_s, question_wall_s, pricing) -> dict:
+    """组装单题 telemetry(gen_rollup = sink.aggregate_by_name() 输出)。"""
+    deepseek_p = (pricing or {}).get("deepseek")
+    glm_p = (pricing or {}).get("glm")
+
+    gen_pt = sum(d["prompt_tokens"] for d in gen_rollup.values())
+    gen_ct = sum(d["completion_tokens"] for d in gen_rollup.values())
+    gen_cost = compute_cost(gen_pt, gen_ct, deepseek_p)
+    judge_cost = compute_cost(judge_stat.get("prompt_tokens", 0),
+                              judge_stat.get("completion_tokens", 0), glm_p)
+    total_cost = None if (gen_cost is None and judge_cost is None) \
+                      else (gen_cost or 0) + (judge_cost or 0)
+
+    utilization = {}
+    for name, d in gen_rollup.items():
+        ms = d.get("mean_steps", 0.0)
+        mx = d.get("max_steps", 0) or 0
+        utilization[name] = {"mean_steps": ms, "max_steps": mx,
+                             "budget_used": (ms / mx) if mx else 0.0,
+                             "hit_max": d.get("hit_max", 0)}
+
+    return {
+        "wall_s": question_wall_s,
+        "generator": {"by_agent": list(gen_rollup.values()),
+                      "totals": {"prompt_tokens": gen_pt, "completion_tokens": gen_ct,
+                                 "cost_usd": gen_cost}},
+        "judge": {"calls": judge_stat.get("calls", 0),
+                  "prompt_tokens": judge_stat.get("prompt_tokens", 0),
+                  "completion_tokens": judge_stat.get("completion_tokens", 0),
+                  "wall_s": judge_wall_s, "cost_usd": judge_cost},
+        "cost_usd": {"generator": gen_cost, "judge": judge_cost, "total": total_cost},
+        "utilization": utilization,
+    }
+
+
+def aggregate_telemetry(per_question_telemetries, pricing=None) -> dict:
+    """跨题聚合进 scorecard。per_question_telemetries: telemetry dict 列表(可含 None)。"""
+    valid = [t for t in per_question_telemetries if t]
+    n = len(valid)
+    if n == 0:
+        return {"n_questions": 0, "mean_wall_s": None, "total_cost_usd": None,
+                "eval_wall_s": None, "agents": {}}
+    mean_wall = sum(t.get("wall_s", 0.0) for t in valid) / n
+
+    def _sum_cost(key):
+        vals = [t["cost_usd"][key] for t in valid
+                if t.get("cost_usd") and t["cost_usd"][key] is not None]
+        return sum(vals) if vals else None
+
+    g, j, tot = _sum_cost("generator"), _sum_cost("judge"), _sum_cost("total")
+    total_cost = (None if (g is None and j is None and tot is None)
+                  else {"generator": g, "judge": j, "total": tot})
+
+    steps, budget = {}, {}
+    for t in valid:
+        for name, u in t.get("utilization", {}).items():
+            steps.setdefault(name, []).append(u.get("mean_steps", 0.0))
+            budget.setdefault(name, []).append(u.get("budget_used", 0.0))
+    agents = {name: {"mean_steps": sum(v) / len(v),
+                     "mean_budget_used": sum(budget[name]) / len(budget[name])}
+              for name, v in steps.items()}
+
+    return {"n_questions": n, "mean_wall_s": mean_wall, "total_cost_usd": total_cost,
+            "eval_wall_s": None, "agents": agents}
