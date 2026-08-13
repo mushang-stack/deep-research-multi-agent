@@ -421,3 +421,36 @@ def test_evaluate_question_report_none_still_emits_telemetry():
     assert sc["success"] is False
     assert sc["telemetry"]["judge"]["calls"] == 0
     assert sc["telemetry"]["cost_usd"]["total"] is None   # cfg 无 pricing
+
+
+def test_main_aggregates_telemetry_into_scorecard(tmp_path):
+    bench = _bench_with(tmp_path, ["q1", "q2"])
+    out = tmp_path / "out"
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}',
+                    usage={"prompt_tokens": 100, "completion_tokens": 10}),
+        LLMResponse(content='{"covered":true,"reason":""}',
+                    usage={"prompt_tokens": 80, "completion_tokens": 8}),
+    ] * 2)   # 2 题 × (1 finding + 1 keyfact) = 4
+    cfg = Config({"thresholds": {"grounding_min": 0.85},
+                  "pricing": {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28},
+                              "glm": {"input_per_1m": 0.28, "output_per_1m": 1.12}}})
+    rc = main(["--benchmark", str(bench), "--results", str(out)],
+              run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
+    assert rc == 0
+    summary = json.loads((out / "scorecard.json").read_text(encoding="utf-8"))
+    tel = summary["telemetry"]
+    assert tel["n_questions"] == 2
+    assert tel["eval_wall_s"] is not None and tel["eval_wall_s"] >= 0.0
+    assert tel["total_cost_usd"]["total"] is not None
+
+
+def test_print_telemetry_runs(capsys):
+    from eval.run_eval import _print_telemetry
+    _print_telemetry({"telemetry": {
+        "eval_wall_s": 12.3, "mean_wall_s": 6.0,
+        "total_cost_usd": {"generator": 0.01, "judge": 0.005, "total": 0.015},
+        "agents": {"researcher": {"mean_steps": 4.0, "mean_budget_used": 0.67}}}})
+    out = capsys.readouterr().out
+    assert "运维遥测" in out
+    assert "researcher" in out

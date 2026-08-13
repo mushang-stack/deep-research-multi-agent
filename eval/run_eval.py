@@ -16,7 +16,8 @@ from agents.system import build_system
 from agents.baseline import build_baseline_system
 from core.config import load_config
 from core.schemas import Report
-from core.telemetry import TelemetrySink, CountingClient, build_telemetry
+from core.telemetry import (TelemetrySink, CountingClient,
+                            build_telemetry, aggregate_telemetry)
 from llm.glm_client import GLMClient
 
 from .judge import judge_finding, judge_key_fact
@@ -152,6 +153,26 @@ def _print_summary(summary: dict) -> None:
         print(f"⚠ 裁判输出不可解析累计 {summary['total_judge_parse_failures']} 次")
 
 
+def _print_telemetry(summary: dict) -> None:
+    t = summary.get("telemetry") or {}
+    print("\n=== 运维遥测 telemetry ===")
+    ew, mw = t.get("eval_wall_s"), t.get("mean_wall_s")
+    print(f"整批墙钟 {ew:.1f}s" if ew is not None else "整批墙钟 N/A", end="  ")
+    print(f"单题均值 {mw:.1f}s" if mw is not None else "单题均值 N/A")
+    tc = t.get("total_cost_usd") or {}
+
+    def _c(k):
+        v = tc.get(k) if isinstance(tc, dict) else None
+        return f"${v:.4f}" if v is not None else "N/A"
+
+    print(f"总成本 产品(DeepSeek){_c('generator')}  "
+          f"评估(GLM){_c('judge')}  合计{_c('total')}")
+    for name, a in (t.get("agents") or {}).items():
+        ms = a.get("mean_steps", 0.0)
+        bu = a.get("mean_budget_used", 0.0)
+        print(f"  [{name}] 均值 {ms:.1f} 步  预算占用 {bu:.0%}")
+
+
 def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
          judge_client=None, cfg=None, results_dir=None) -> int:
     load_dotenv()
@@ -216,13 +237,19 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
         return sc
 
     # 题间并发(question_concurrency=1 等价串行,向后兼容);pool.map 保序
+    eval_start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=question_concurrency) as pool:
         scorecards = list(pool.map(_eval_one, items))
+    eval_wall_s = time.perf_counter() - eval_start
 
     summary = aggregate(scorecards, cfg["thresholds"]["grounding_min"])
+    summary["telemetry"] = aggregate_telemetry(
+        [sc.get("telemetry") for sc in scorecards], cfg.get("pricing"))
+    summary["telemetry"]["eval_wall_s"] = eval_wall_s
     (res_dir / "scorecard.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     _print_summary(summary)
+    _print_telemetry(summary)
     return 0
 
 
