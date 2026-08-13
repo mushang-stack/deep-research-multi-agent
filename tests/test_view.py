@@ -76,3 +76,46 @@ def test_render_telemetry_md_contains_bar_and_pct():
     assert "█" in md
     assert "writer" in md
     assert "%" in md
+
+
+def test_clean_text_strips_leading_status_glyph():
+    # warn/report_ready 文案自带 ⚠/✓;_clean_text 剥之,避免与 _ICONS 双重显示
+    rows = timeline_rows([
+        {"kind": "warn", "role": None, "text": "[orchestrator] ⚠ 已达最大轮次",
+         "payload": {"reason": "x"}, "ts": 0.0},
+        {"kind": "report_ready", "role": None, "text": "[orchestrator] ✓ 报告已生成",
+         "payload": {"sections": 1}, "ts": 0.0},
+    ])
+    md = render_timeline_md([{"kind": "warn", "role": None,
+                              "text": "[orchestrator] ⚠ 已达最大轮次", "payload": {}, "ts": 0.0}])
+    assert "⚠ ⚠" not in md          # 不重复
+    assert "已达最大轮次" in md
+
+
+def test_parallel_single_and_interleaved_no_badge():
+    # 单个 research_start → 无并行标记;被其他事件隔开 → 不并组
+    events = [
+        {"kind": "research_start", "role": "researcher", "text": "a", "payload": {}, "ts": 0.1},
+        {"kind": "verify_start", "role": "verifier", "text": "v", "payload": {}, "ts": 0.2},
+        {"kind": "research_start", "role": "researcher", "text": "b", "payload": {}, "ts": 0.3},
+    ]
+    rows = timeline_rows(events)
+    assert rows[0]["parallel"] is None
+    assert rows[2]["parallel"] is None
+
+
+def test_bar_clamps_out_of_range():
+    assert _bar(1.5) == "██████████"   # 上界
+    assert _bar(-0.3) == "░░░░░░░░░░"  # 下界
+
+
+def test_telemetry_tiles_max_steps_zero_and_no_pricing():
+    rollup = {"x": {"name": "x", "max_steps": 0, "mean_steps": 0.0,
+                    "prompt_tokens": 0, "completion_tokens": 0}}
+    tiles = telemetry_tiles(rollup, None)
+    assert tiles["x"]["budget_used"] == 0.0   # 除零保护
+    assert tiles["x"]["cost_usd"] is None     # 无 pricing
+
+
+def test_render_telemetry_md_empty_rollup_returns_empty():
+    assert render_telemetry_md({}, {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28}}) == ""

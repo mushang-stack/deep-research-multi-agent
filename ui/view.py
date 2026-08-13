@@ -31,7 +31,9 @@ def render_report_markdown(report) -> str:
 
 def _clean_text(text: str) -> str:
     text = text.strip()
-    return re.sub(r"^\[[^\]]*\]\s*", "", text)  # 去前导 [tag]
+    text = re.sub(r"^\[[^\]]*\]\s*", "", text)   # 去前导 [tag]
+    text = re.sub(r"^[⚠✗✓✅❌]\s*", "", text)     # 去前导状态符(避免与 _ICONS 双重显示)
+    return text
 
 
 def _parallel_badges(events):
