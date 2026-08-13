@@ -1,0 +1,41 @@
+{
+  "n_questions": 5,
+  "n_success": 4,
+  "success_rate": 0.8,
+  "mean_grounding": 0.9703575410097149,
+  "mean_citation": 0.9386446886446886,
+  "mean_coverage": 0.65,
+  "mean_hallucination": 0.06135531135531135,
+  "grounding_questions": 4,
+  "grounding_min": 0.85,
+  "passed": true,
+  "total_judge_parse_failures": 2,
+  "telemetry": {
+    "n_questions": 4,
+    "mean_wall_s": 282.160354,
+    "total_cost_usd": {
+      "generator": 0.19951512000000002,
+      "judge": 0.07093744,
+      "total": 0.27045256
+    },
+    "eval_wall_s": 1979.6481194000003,
+    "agents": {
+      "researcher": {
+        "mean_steps": 5.223214285714286,
+        "mean_budget_used": 0.8705357142857144
+      },
+      "verifier": {
+        "mean_steps": 6.25,
+        "mean_budget_used": 0.5208333333333333
+      },
+      "writer": {
+        "mean_steps": 1.0,
+        "mean_budget_used": 0.08333333333333333
+      },
+      "orchestrator": {
+        "mean_steps": 6.0,
+        "mean_budget_used": 0.5
+      }
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "id": "q005",
+  "question": "一家企业计划引入AI Agent提升客服效率，应该如何评估是否值得投入？",
+  "success": true,
+  "failed": null,
+  "n_findings": 39,
+  "n_key_facts": 5,
+  "grounding": 0.9487179487179487,
+  "citation": 0.8974358974358975,
+  "coverage": 0.6,
+  "hallucination": 0.10256410256410256,
+  "grounding_available": true,
+  "judge_parse_failures": 1,
+  "telemetry": {
+    "wall_s": 164.5825235000002,
+    "generator": {
+      "by_agent": [
+        {
+          "name": "researcher",
+          "n": 7,
+          "total_steps": 29,
+          "max_steps": 6,
+          "prompt_tokens": 77156,
+          "completion_tokens": 8004,
+          "wall_s": 9.92096039999998,
+          "hit_max": 1,
+          "mean_steps": 4.142857142857143
+        },
+        {
+          "name": "verifier",
+          "n": 3,
+          "total_steps": 27,
+          "max_steps": 12,
+          "prompt_tokens": 364084,
+          "completion_tokens": 11724,
+          "wall_s": 37.08545609999995,
+          "hit_max": 1,
+          "mean_steps": 9.0
+        },
+        {
+          "name": "writer",
+          "n": 1,
+          "total_steps": 1,
+          "max_steps": 12,
+          "prompt_tokens": 1477,
+          "completion_tokens": 1277,
+          "wall_s": 8.98028979999981,
+          "hit_max": 0,
+          "mean_steps": 1.0
+        },
+        {
+          "name": "orchestrator",
+          "n": 1,
+          "total_steps": 5,
+          "max_steps": 12,
+          "prompt_tokens": 35251,
+          "completion_tokens": 3011,
+          "wall_s": 164.57541429999947,
+          "hit_max": 0,
+          "mean_steps": 5.0
+        }
+      ],
+      "totals": {
+        "prompt_tokens": 477968,
+        "completion_tokens": 24016,
+        "cost_usd": 0.07364000000000001
+      }
+    },
+    "judge": {
+      "calls": 51,
+      "prompt_tokens": 19320,
+      "completion_tokens": 15189,
+      "wall_s": 51.370563100000254,
+      "cost_usd": 0.022421280000000002
+    },
+    "cost_usd": {
+      "generator": 0.07364000000000001,
+      "judge": 0.022421280000000002,
+      "total": 0.09606128000000001
+    },
+    "utilization": {
+      "researcher": {
+        "mean_steps": 4.142857142857143,
+        "max_steps": 6,
+        "budget_used": 0.6904761904761906,
+        "hit_max": 1
+      },
+      "verifier": {
+        "mean_steps": 9.0,
+        "max_steps": 12,
+        "budget_used": 0.75,
+        "hit_max": 1
+      },
+      "writer": {
+        "mean_steps": 1.0,
+        "max_steps": 12,
+        "budget_used": 0.08333333333333333,
+        "hit_max": 0
+      },
+      "orchestrator": {
+        "mean_steps": 5.0,
+        "max_steps": 12,
+        "budget_used": 0.4166666666666667,
+        "hit_max": 0
+      }
+    }
+  }
+}

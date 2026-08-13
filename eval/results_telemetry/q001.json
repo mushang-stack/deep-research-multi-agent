@@ -1,0 +1,108 @@
+{
+  "id": "q001",
+  "question": "比较RAG和Fine-tuning在企业AI应用中的适用场景和技术限制。",
+  "success": true,
+  "failed": null,
+  "n_findings": 23,
+  "n_key_facts": 5,
+  "grounding": 0.9565217391304348,
+  "citation": 1.0,
+  "coverage": 0.8,
+  "hallucination": 0.0,
+  "grounding_available": true,
+  "judge_parse_failures": 0,
+  "telemetry": {
+    "wall_s": 373.1376534000001,
+    "generator": {
+      "by_agent": [
+        {
+          "name": "researcher",
+          "n": 6,
+          "total_steps": 32,
+          "max_steps": 6,
+          "prompt_tokens": 109017,
+          "completion_tokens": 7246,
+          "wall_s": 33.21093294999984,
+          "hit_max": 3,
+          "mean_steps": 5.333333333333333
+        },
+        {
+          "name": "verifier",
+          "n": 1,
+          "total_steps": 9,
+          "max_steps": 12,
+          "prompt_tokens": 110667,
+          "completion_tokens": 4846,
+          "wall_s": 212.71028720000004,
+          "hit_max": 0,
+          "mean_steps": 9.0
+        },
+        {
+          "name": "writer",
+          "n": 1,
+          "total_steps": 1,
+          "max_steps": 12,
+          "prompt_tokens": 1885,
+          "completion_tokens": 1467,
+          "wall_s": 8.273450099999991,
+          "hit_max": 0,
+          "mean_steps": 1.0
+        },
+        {
+          "name": "orchestrator",
+          "n": 1,
+          "total_steps": 7,
+          "max_steps": 12,
+          "prompt_tokens": 40636,
+          "completion_tokens": 3951,
+          "wall_s": 373.1290527000001,
+          "hit_max": 0,
+          "mean_steps": 7.0
+        }
+      ],
+      "totals": {
+        "prompt_tokens": 262205,
+        "completion_tokens": 17510,
+        "cost_usd": 0.0416115
+      }
+    },
+    "judge": {
+      "calls": 29,
+      "prompt_tokens": 14223,
+      "completion_tokens": 8596,
+      "wall_s": 19.485175100000106,
+      "cost_usd": 0.01360996
+    },
+    "cost_usd": {
+      "generator": 0.0416115,
+      "judge": 0.01360996,
+      "total": 0.05522146
+    },
+    "utilization": {
+      "researcher": {
+        "mean_steps": 5.333333333333333,
+        "max_steps": 6,
+        "budget_used": 0.8888888888888888,
+        "hit_max": 3
+      },
+      "verifier": {
+        "mean_steps": 9.0,
+        "max_steps": 12,
+        "budget_used": 0.75,
+        "hit_max": 0
+      },
+      "writer": {
+        "mean_steps": 1.0,
+        "max_steps": 12,
+        "budget_used": 0.08333333333333333,
+        "hit_max": 0
+      },
+      "orchestrator": {
+        "mean_steps": 7.0,
+        "max_steps": 12,
+        "budget_used": 0.5833333333333334,
+        "hit_max": 0
+      }
+    }
+  }
+}

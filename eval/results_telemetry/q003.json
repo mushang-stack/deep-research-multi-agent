@@ -1,0 +1,108 @@
+{
+  "id": "q003",
+  "question": "如何设计一个用于评价AI Agent性能的benchmark体系？",
+  "success": true,
+  "failed": null,
+  "n_findings": 21,
+  "n_key_facts": 5,
+  "grounding": 0.9761904761904762,
+  "citation": 0.8571428571428571,
+  "coverage": 0.8,
+  "hallucination": 0.14285714285714285,
+  "grounding_available": true,
+  "judge_parse_failures": 1,
+  "telemetry": {
+    "wall_s": 210.05409820000023,
+    "generator": {
+      "by_agent": [
+        {
+          "name": "researcher",
+          "n": 8,
+          "total_steps": 46,
+          "max_steps": 6,
+          "prompt_tokens": 140056,
+          "completion_tokens": 7316,
+          "wall_s": 38.140770624999845,
+          "hit_max": 5,
+          "mean_steps": 5.75
+        },
+        {
+          "name": "verifier",
+          "n": 2,
+          "total_steps": 6,
+          "max_steps": 12,
+          "prompt_tokens": 24756,
+          "completion_tokens": 2871,
+          "wall_s": 10.51047165,
+          "hit_max": 0,
+          "mean_steps": 3.0
+        },
+        {
+          "name": "writer",
+          "n": 1,
+          "total_steps": 1,
+          "max_steps": 12,
+          "prompt_tokens": 1715,
+          "completion_tokens": 1192,
+          "wall_s": 7.779665000000023,
+          "hit_max": 0,
+          "mean_steps": 1.0
+        },
+        {
+          "name": "orchestrator",
+          "n": 1,
+          "total_steps": 6,
+          "max_steps": 12,
+          "prompt_tokens": 31209,
+          "completion_tokens": 3508,
+          "wall_s": 210.04613089999975,
+          "hit_max": 0,
+          "mean_steps": 6.0
+        }
+      ],
+      "totals": {
+        "prompt_tokens": 197736,
+        "completion_tokens": 14887,
+        "cost_usd": 0.0318514
+      }
+    },
+    "judge": {
+      "calls": 32,
+      "prompt_tokens": 13606,
+      "completion_tokens": 11549,
+      "wall_s": 38.047150899999906,
+      "cost_usd": 0.016744560000000002
+    },
+    "cost_usd": {
+      "generator": 0.0318514,
+      "judge": 0.016744560000000002,
+      "total": 0.04859596000000001
+    },
+    "utilization": {
+      "researcher": {
+        "mean_steps": 5.75,
+        "max_steps": 6,
+        "budget_used": 0.9583333333333334,
+        "hit_max": 5
+      },
+      "verifier": {
+        "mean_steps": 3.0,
+        "max_steps": 12,
+        "budget_used": 0.25,
+        "hit_max": 0
+      },
+      "writer": {
+        "mean_steps": 1.0,
+        "max_steps": 12,
+        "budget_used": 0.08333333333333333,
+        "hit_max": 0
+      },
+      "orchestrator": {
+        "mean_steps": 6.0,
+        "max_steps": 12,
+        "budget_used": 0.5,
+        "hit_max": 0
+      }
+    }
+  }
+}

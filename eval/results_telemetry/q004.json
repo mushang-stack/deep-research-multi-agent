@@ -1,0 +1,108 @@
+{
+  "id": "q004",
+  "question": "截至2026年，主流AI Agent开发框架有哪些，它们在架构设计、工具调用和生产部署方面有什么区别？",
+  "success": true,
+  "failed": null,
+  "n_findings": 38,
+  "n_key_facts": 5,
+  "grounding": 1.0,
+  "citation": 1.0,
+  "coverage": 0.4,
+  "hallucination": 0.0,
+  "grounding_available": true,
+  "judge_parse_failures": 0,
+  "telemetry": {
+    "wall_s": 380.8671408999994,
+    "generator": {
+      "by_agent": [
+        {
+          "name": "researcher",
+          "n": 12,
+          "total_steps": 68,
+          "max_steps": 6,
+          "prompt_tokens": 244903,
+          "completion_tokens": 12406,
+          "wall_s": 67.27794087499994,
+          "hit_max": 7,
+          "mean_steps": 5.666666666666667
+        },
+        {
+          "name": "verifier",
+          "n": 1,
+          "total_steps": 4,
+          "max_steps": 12,
+          "prompt_tokens": 38511,
+          "completion_tokens": 4293,
+          "wall_s": 27.637802600000214,
+          "hit_max": 0,
+          "mean_steps": 4.0
+        },
+        {
+          "name": "writer",
+          "n": 1,
+          "total_steps": 1,
+          "max_steps": 12,
+          "prompt_tokens": 2678,
+          "completion_tokens": 1795,
+          "wall_s": 10.788520299999618,
+          "hit_max": 0,
+          "mean_steps": 1.0
+        },
+        {
+          "name": "orchestrator",
+          "n": 1,
+          "total_steps": 6,
+          "max_steps": 12,
+          "prompt_tokens": 41041,
+          "completion_tokens": 5126,
+          "wall_s": 380.8606853000001,
+          "hit_max": 0,
+          "mean_steps": 6.0
+        }
+      ],
+      "totals": {
+        "prompt_tokens": 327133,
+        "completion_tokens": 23620,
+        "cost_usd": 0.05241222
+      }
+    },
+    "judge": {
+      "calls": 43,
+      "prompt_tokens": 19955,
+      "completion_tokens": 11227,
+      "wall_s": 28.513994900000398,
+      "cost_usd": 0.01816164
+    },
+    "cost_usd": {
+      "generator": 0.05241222,
+      "judge": 0.01816164,
+      "total": 0.07057386
+    },
+    "utilization": {
+      "researcher": {
+        "mean_steps": 5.666666666666667,
+        "max_steps": 6,
+        "budget_used": 0.9444444444444445,
+        "hit_max": 7
+      },
+      "verifier": {
+        "mean_steps": 4.0,
+        "max_steps": 12,
+        "budget_used": 0.3333333333333333,
+        "hit_max": 0
+      },
+      "writer": {
+        "mean_steps": 1.0,
+        "max_steps": 12,
+        "budget_used": 0.08333333333333333,
+        "hit_max": 0
+      },
+      "orchestrator": {
+        "mean_steps": 6.0,
+        "max_steps": 12,
+        "budget_used": 0.5,
+        "hit_max": 0
+      }
+    }
+  }
+}
