@@ -1,0 +1,327 @@
+{
+  "question": "对比 RAG 与微调的适用场景与工程权衡",
+  "events": [
+    {
+      "kind": "run_start",
+      "role": null,
+      "text": "[start] 研究问题:对比 RAG 与微调的适用场景与工程权衡",
+      "payload": {
+        "question": "对比 RAG 与微调的适用场景与工程权衡"
+      },
+      "ts": 0.01599999999962165
+    },
+    {
+      "kind": "research_round",
+      "role": null,
+      "text": "[orchestrator] dispatch_research 第 1/3 轮,派发 6 个子问题",
+      "payload": {
+        "round": 1,
+        "max_rounds": 3,
+        "n_subquestions": 6,
+        "is_gap": false
+      },
+      "ts": 3.452999999997701
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG(检索增强生成)的技术原理、核心组件与工作流程是什么?",
+      "payload": {
+        "sub_question": "RAG(检索增强生成)的技术原理、核心组件与工作流程是什么?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:模型微调(Fine-tuning)的技术原理、方法类型(LoRA、全参数微调等)是什么?",
+      "payload": {
+        "sub_question": "模型微调(Fine-tuning)的技术原理、方法类型(LoRA、全参数微调等)是什么?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG 适用于哪些场景?在哪些场景下 RAG 优于微调?",
+      "payload": {
+        "sub_question": "RAG 适用于哪些场景?在哪些场景下 RAG 优于微调?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:微调适用于哪些场景?在哪些场景下微调优于 RAG?",
+      "payload": {
+        "sub_question": "微调适用于哪些场景?在哪些场景下微调优于 RAG?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG 与微调在工程实现上的权衡:成本、延迟、数据需求、可维护性、可解释性、知识更新等方面如何对比?",
+      "payload": {
+        "sub_question": "RAG 与微调在工程实现上的权衡:成本、延迟、数据需求、可维护性、可解释性、知识更新等方面如何对比?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG 与微调是否可以结合使用?混合方案的最佳实践是什么?",
+      "payload": {
+        "sub_question": "RAG 与微调是否可以结合使用?混合方案的最佳实践是什么?"
+      },
+      "ts": 3.4690000000009604
+    },
+    {
+      "kind": "research_done",
+      "role": "researcher",
+      "text": "  [researcher] 完成 → content 1524 字",
+      "payload": {
+        "sub_question": "微调适用于哪些场景?在哪些场景下微调优于 RAG?",
+        "content_len": 1524
+      },
+      "ts": 13.640999999999622
+    },
+    {
+      "kind": "research_done",
+      "role": "researcher",
+      "text": "  [researcher] 完成 → content 4968 字",
+      "payload": {
+        "sub_question": "RAG 与微调在工程实现上的权衡:成本、延迟、数据需求、可维护性、可解释性、知识更新等方面如何对比?",
+        "content_len": 4968
+      },
+      "ts": 19.812999999998283
+    },
+    {
+      "kind": "research_round_done",
+      "role": null,
+      "text": "[orchestrator] dispatch_research 完成 → 13 条 findings,4 个失败子问题",
+      "payload": {
+        "round": 1,
+        "findings": 13,
+        "failures": 4
+      },
+      "ts": 138.78199999999924
+    },
+    {
+      "kind": "verify_start",
+      "role": "verifier",
+      "text": "[orchestrator] verify_findings → 复核 13 条 findings",
+      "payload": {
+        "findings": 13
+      },
+      "ts": 143.61000000000058
+    },
+    {
+      "kind": "verify_done",
+      "role": "verifier",
+      "text": "[orchestrator] verify_findings 完成 → 13 条结果(supported 6/weak 7/unsupported 0)",
+      "payload": {
+        "results": 13,
+        "supported": 6,
+        "weak": 7,
+        "unsupported": 0
+      },
+      "ts": 213.03199999999924
+    },
+    {
+      "kind": "research_round",
+      "role": null,
+      "text": "[orchestrator] dispatch_research 第 2/3 轮,派发 2 个子问题",
+      "payload": {
+        "round": 2,
+        "max_rounds": 3,
+        "n_subquestions": 2,
+        "is_gap": true
+      },
+      "ts": 215.53199999999924
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG 适用于哪些具体场景?在哪些场景下 RAG 优于微调(如知识频繁更新、需要引用来源、外部数据)?",
+      "payload": {
+        "sub_question": "RAG 适用于哪些具体场景?在哪些场景下 RAG 优于微调(如知识频繁更新、需要引用来源、外部数据)?"
+      },
+      "ts": 215.53199999999924
+    },
+    {
+      "kind": "research_start",
+      "role": "researcher",
+      "text": "  [researcher] 检索子问题:RAG 与微调结合使用的混合方案最佳实践是什么?",
+      "payload": {
+        "sub_question": "RAG 与微调结合使用的混合方案最佳实践是什么?"
+      },
+      "ts": 215.53199999999924
+    },
+    {
+      "kind": "research_done",
+      "role": "researcher",
+      "text": "  [researcher] 完成 → content 3522 字",
+      "payload": {
+        "sub_question": "RAG 适用于哪些具体场景?在哪些场景下 RAG 优于微调(如知识频繁更新、需要引用来源、外部数据)?",
+        "content_len": 3522
+      },
+      "ts": 228.84400000000096
+    },
+    {
+      "kind": "research_round_done",
+      "role": null,
+      "text": "[orchestrator] dispatch_research 完成 → 6 条 findings,1 个失败子问题",
+      "payload": {
+        "round": 2,
+        "findings": 6,
+        "failures": 1
+      },
+      "ts": 230.28199999999924
+    },
+    {
+      "kind": "write_start",
+      "role": "writer",
+      "text": "[orchestrator] write_report → 让 Writer 综合报告(outline 494 字,19 条 verified findings)",
+      "payload": {
+        "outline_len": 494,
+        "verified_findings": 19
+      },
+      "ts": 239.0779999999977
+    },
+    {
+      "kind": "report_ready",
+      "role": null,
+      "text": "[orchestrator] ✓ 报告已生成(5 节),存入 holder",
+      "payload": {
+        "sections": 5
+      },
+      "ts": 247.34400000000096
+    },
+    {
+      "kind": "run_done",
+      "role": null,
+      "text": "[done] ✓ 报告生成",
+      "payload": {
+        "success": true
+      },
+      "ts": 248.15699999999924
+    }
+  ],
+  "report": {
+    "sections": [
+      {
+        "heading": "一、技术原理概述",
+        "content": "RAG(检索增强生成)通过将外部数据增强到提示词中,连接 LLM 与外部知识源,使模型能够利用外部数据生成回答。微调则通过训练将额外知识融入模型本身,调整模型参数,使模型获得新的领域知识。两者在技术原理上存在根本差异:RAG 是在推理时动态引入外部信息,而微调是在训练阶段将知识固化到模型参数中。",
+        "citations": [
+          "f13",
+          "f3"
+        ]
+      },
+      {
+        "heading": "二、适用场景对比",
+        "content": "### RAG 更优的场景\nRAG 在多个场景下优于微调。首先,在知识频繁更新的场景下,RAG 优于微调,因为 RAG 系统能实时连接模型与补充的外部数据,把最新信息纳入生成回答中,而微调/重训成本高昂。RAG 适用于需要最新信息的场景,开发者可以用 RAG 把 LLM 直接连接到实时社交媒体、新闻网站或其他频繁更新的信息源。其次,RAG 适用于需要引用来源、可验证输出的场景,因为 RAG 模型可以在回答中包含对外部知识来源的引用。RAG 能让 LLM 在输出中呈现带来源归属的准确信息,从而增强用户信任。此外,RAG 能让企业使用内部权威数据源而无需重训模型,从而避免微调/重训的高昂计算与资源成本。RAG 还适用于企业客户支持、研究、内容生成、市场分析、知识引擎和推荐服务等具体场景。\n\n### 微调更优的场景\n微调适用于已有高质量、高结构化知识库/数据库,以及特定领域、固定格式规范(如合同撰写、商务邮件)的场景。微调适用于数据量较小但质量高的领域,以及对模型效果有较高要求且能承担计算资源消耗的场景。微调适用于特定任务优化(如情感分析、文本分类)、对推理能力和输出内容要求较高、处理敏感数据以及任务相对固定的场景。对于简单任务,微调可能达到比RAG更高的效果上限,因为它可以针对性地调整模型参数。微调提供高度优化,使答案适应特定任务,适合静态上下文或知识不频繁变化的领域。",
+        "citations": [
+          "f2b",
+          "f4b",
+          "f1b",
+          "f5b",
+          "f3b",
+          "f6b",
+          "f1",
+          "f2",
+          "f4",
+          "f5",
+          "f12"
+        ]
+      },
+      {
+        "heading": "三、工程权衡对比",
+        "content": "在成本方面,RAG 通常被认为比微调更具成本效益,因为它利用现有数据构建管道连接 LLM,而微调需要专门的数据标注和重复模型训练所需的大量计算资源。微调通过训练使模型获得新的领域知识,需要相对足量的领域数据,且需要大量计算资源(GPU)和较长的训练时间。在设置成本、可扩展性和更新速度上,微调为高设置成本、低可扩展性(需重新训练模型)、更新需数小时到数天;RAG 为低设置成本(索引配置)、高可扩展性(实时更新)、更新只需数分钟。在可维护性与技术门槛方面,RAG 实现需要编码和架构技能,但相比传统微调更易获得反馈、排查和修复应用;微调需要 NLP、深度学习、模型配置、数据再处理和评估方面的经验,整体更技术化且耗时。在可解释性与来源追溯方面,RAG 可以设计为引用其来源,因此易于追溯输出是如何形成的,带来更多透明度和信任;而微调没有 grounding 或按用户的数据分段。在数据需求与隐私方面,RAG 允许使用外部数据而无需修改基础模型,并提供精确、安全、可追溯的答案;但其准确性依赖检索到的信息,检索在上下文窗口大小方面可能代价高昂,并面临集成和隐私挑战。微调基于静态的训练数据快照,信息可能过时并需要重新训练;而 RAG 让 LLM 从所选来源检索实时信息,从而拉取最新数据。微调重新训练过程消耗时间和计算资源,精度依赖数据集的质量和规模。",
+        "citations": [
+          "f6",
+          "f3",
+          "f10",
+          "f9",
+          "f8",
+          "f11",
+          "f7",
+          "f12"
+        ]
+      },
+      {
+        "heading": "四、结合使用的最佳实践",
+        "content": "RAG 通过将外部数据增强到提示词中,而微调则将额外知识融入模型本身;两者结合使用可进一步提升准确性。这种混合方案能够 leverage best of both worlds,既利用 RAG 的实时检索和来源追溯能力,又利用微调的任务优化和格式规范能力,实现效果叠加。",
+        "citations": [
+          "f13"
+        ]
+      },
+      {
+        "heading": "五、结论与决策建议",
+        "content": "综合来看,RAG 和微调各有适用场景与工程权衡。RAG 更适合知识频繁更新、需要引用来源、使用内部权威数据源以及需要实时信息的场景,且成本效益更高、可扩展性更强、更新更快、可解释性更好。微调更适合特定任务优化、固定格式规范、静态上下文以及简单任务下追求更高效果上限的场景,但需要更高的计算资源和技术门槛。在实际应用中,应根据具体需求选择合适方案,或采用两者结合的混合策略以最大化效果。",
+        "citations": [
+          "f2b",
+          "f1b",
+          "f3b",
+          "f4b",
+          "f6",
+          "f10",
+          "f8",
+          "f1",
+          "f4",
+          "f5",
+          "f12",
+          "f13"
+        ]
+      }
+    ],
+    "sources": []
+  },
+  "telemetry": {
+    "researcher": {
+      "name": "researcher",
+      "n": 8,
+      "total_steps": 43,
+      "max_steps": 6,
+      "prompt_tokens": 130847,
+      "completion_tokens": 7152,
+      "wall_s": 36.32381755000006,
+      "hit_max": 5,
+      "mean_steps": 5.375
+    },
+    "verifier": {
+      "name": "verifier",
+      "n": 1,
+      "total_steps": 12,
+      "max_steps": 12,
+      "prompt_tokens": 125936,
+      "completion_tokens": 6970,
+      "wall_s": 69.41779310000129,
+      "hit_max": 0,
+      "mean_steps": 12.0
+    },
+    "writer": {
+      "name": "writer",
+      "n": 1,
+      "total_steps": 1,
+      "max_steps": 12,
+      "prompt_tokens": 1427,
+      "completion_tokens": 1213,
+      "wall_s": 8.27604060000158,
+      "hit_max": 0,
+      "mean_steps": 1.0
+    },
+    "orchestrator": {
+      "name": "orchestrator",
+      "n": 1,
+      "total_steps": 5,
+      "max_steps": 12,
+      "prompt_tokens": 23711,
+      "completion_tokens": 2554,
+      "wall_s": 248.0728831999986,
+      "hit_max": 0,
+      "mean_steps": 5.0
+    }
+  },
+  "status": "success"
+}
