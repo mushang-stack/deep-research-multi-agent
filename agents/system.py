@@ -13,10 +13,11 @@ from .observe import progress
 
 
 def build_system(config: Config, *, client: LLMClient | None = None,
-                 search_client=None, verify: bool = True):
+                 search_client=None, verify: bool = True, recorder=None):
     """组装整个系统,返回 (orchestrator_loop, get_report)。
 
     client / search_client 可注入(测试用 fake);为 None 时按 config + env 构造真实 client。
+    recorder:可选 TelemetrySink,注入四个 agent 做运维遥测。
     """
     gen = config["models"]["generator"]
     client = client or DeepSeekClient(
@@ -37,7 +38,8 @@ def build_system(config: Config, *, client: LLMClient | None = None,
     def _run_researcher(sub_question):
         progress(f"  [researcher] 检索子问题:{sub_question}")
         result = make_researcher(client=client, search_client=search_client,
-                                 max_chars=max_chars, max_steps=researcher_max_steps).run(sub_question)
+                                 max_chars=max_chars, max_steps=researcher_max_steps,
+                                 recorder=recorder).run(sub_question)
         content = result.content or ""
         progress(f"  [researcher] 完成 → content {len(content)} 字,前 120 字:{content[:120]!r}")
         return result
@@ -45,14 +47,17 @@ def build_system(config: Config, *, client: LLMClient | None = None,
     def _run_verifier(findings_json):
         progress("  [verifier] 复核 findings 来源支撑")
         return make_verifier(client=client, search_client=search_client,
-                             max_chars=max_chars, max_steps=max_steps).run(findings_json)
+                             max_chars=max_chars, max_steps=max_steps,
+                             recorder=recorder).run(findings_json)
 
     def _run_writer(user_message):
         progress("  [writer] 综合带引用报告(无工具,仅用传入 findings)")
-        return make_writer(client=client, max_steps=max_steps).run(user_message)
+        return make_writer(client=client, max_steps=max_steps,
+                           recorder=recorder).run(user_message)
 
     return make_orchestrator(
         client=client,
         run_researcher=_run_researcher, run_verifier=_run_verifier, run_writer=_run_writer,
         max_steps=max_steps, research_max_rounds=research_max_rounds, verify=verify,
+        recorder=recorder,
     )

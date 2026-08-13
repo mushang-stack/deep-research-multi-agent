@@ -15,7 +15,7 @@ from ._webtools import build_web_registry
 
 
 def make_baseline(*, client, search_client, max_chars: int = 8000,
-                  writer_max_steps: int = 12, max_steps: int = 16):
+                  writer_max_steps: int = 12, max_steps: int = 16, recorder=None):
     """返回 (baseline_loop, get_report)。
 
     单决策 agent 拥有 web_search / web_read / write_report。write_report(outline, findings):
@@ -38,7 +38,8 @@ def make_baseline(*, client, search_client, max_chars: int = 8000,
         msg = json.dumps({"outline": outline,
                           "verified_findings": [f.model_dump() for f in parsed]},
                          ensure_ascii=False)
-        result = make_writer(client=client, max_steps=writer_max_steps).run(msg)
+        result = make_writer(client=client, max_steps=writer_max_steps,
+                             recorder=recorder).run(msg)
         report = parse_report(result.content)
         if report is None:
             snippet = (result.content or "")[:200]
@@ -59,7 +60,8 @@ def make_baseline(*, client, search_client, max_chars: int = 8000,
     )
 
     loop = AgentLoop(client=client, system_prompt=BASELINE_PROMPT,
-                     registry=reg, max_steps=max_steps, name="baseline")
+                     registry=reg, max_steps=max_steps, name="baseline",
+                     recorder=recorder)
 
     def get_report():
         return holder.get("report")
@@ -67,7 +69,8 @@ def make_baseline(*, client, search_client, max_chars: int = 8000,
     return loop, get_report
 
 
-def build_baseline_system(config: Config, *, client: LLMClient | None = None, search_client=None):
+def build_baseline_system(config: Config, *, client: LLMClient | None = None,
+                          search_client=None, recorder=None):
     """从 config 组装单 agent 基线,返回 (loop, get_report)。签名与 build_system 对齐。"""
     from llm.deepseek_client import DeepSeekClient
     from tools.web_search import BochaSearchClient
@@ -85,4 +88,4 @@ def build_baseline_system(config: Config, *, client: LLMClient | None = None, se
     baseline_max = config["guards"].get("baseline_max_steps", agent_max)
     return make_baseline(client=client, search_client=search_client,
                          max_chars=max_chars, writer_max_steps=agent_max,
-                         max_steps=baseline_max)
+                         max_steps=baseline_max, recorder=recorder)

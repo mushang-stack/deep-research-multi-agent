@@ -5,9 +5,9 @@ from .prompts import VERIFIER_PROMPT
 
 
 def make_verifier(*, client, search_client, max_chars: int = 8000,
-                  max_steps: int = 12) -> AgentLoop:
+                  max_steps: int = 12, recorder=None) -> AgentLoop:
     return AgentLoop(
         client=client, system_prompt=VERIFIER_PROMPT,
         registry=build_web_registry(search_client, max_chars=max_chars),
-        max_steps=max_steps, name="verifier",
+        max_steps=max_steps, name="verifier", recorder=recorder,
     )

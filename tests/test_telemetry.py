@@ -167,3 +167,69 @@ def test_aggregate_telemetry_two_questions():
     assert agg["total_cost_usd"]["total"] == pytest.approx(
         t1["cost_usd"]["total"] + t2["cost_usd"]["total"])
     assert agg["agents"]["researcher"]["mean_steps"] == 4.0
+
+
+# ---------- Task 5: recorder wiring 到各 agent 构造点 ----------
+from agents.researcher import make_researcher
+from agents.verifier import make_verifier
+from agents.writer import make_writer
+from agents.orchestrator import make_orchestrator
+from agents.system import build_system
+from agents.baseline import build_baseline_system
+from core.config import Config
+
+
+class _DummySearch:
+    def search(self, query):
+        return []
+
+
+class _FakeGen(LLMClient):
+    def chat(self, **kw):
+        raise AssertionError("构造阶段不应调 chat")
+
+
+def _cfg_for_build():
+    return Config({"models": {"generator": {}},
+                   "tools": {"web_search": {}, "web_read": {"max_chars": 8000}},
+                   "guards": {"agent_max_steps": 12, "research_max_rounds": 3}})
+
+
+def test_make_researcher_threads_recorder():
+    sink = TelemetrySink()
+    loop = make_researcher(client=_FakeGen(), search_client=_DummySearch(), recorder=sink)
+    assert loop.recorder is sink
+
+
+def test_make_verifier_threads_recorder():
+    sink = TelemetrySink()
+    loop = make_verifier(client=_FakeGen(), search_client=_DummySearch(), recorder=sink)
+    assert loop.recorder is sink
+
+
+def test_make_writer_threads_recorder():
+    sink = TelemetrySink()
+    loop = make_writer(client=_FakeGen(), recorder=sink)
+    assert loop.recorder is sink
+
+
+def test_make_orchestrator_threads_recorder():
+    sink = TelemetrySink()
+    loop, _ = make_orchestrator(client=_FakeGen(), run_researcher=lambda q: None,
+                                run_verifier=lambda f: None, run_writer=lambda m: None,
+                                recorder=sink)
+    assert loop.recorder is sink
+
+
+def test_build_system_threads_recorder_to_orchestrator():
+    sink = TelemetrySink()
+    loop, _ = build_system(_cfg_for_build(), client=_FakeGen(),
+                           search_client=_DummySearch(), recorder=sink)
+    assert loop.recorder is sink
+
+
+def test_build_baseline_system_threads_recorder():
+    sink = TelemetrySink()
+    loop, _ = build_baseline_system(_cfg_for_build(), client=_FakeGen(),
+                                    search_client=_DummySearch(), recorder=sink)
+    assert loop.recorder is sink

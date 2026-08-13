@@ -12,7 +12,7 @@ from .prompts import ORCHESTRATOR_PROMPT, NO_VERIFY_ORCHESTRATOR_PROMPT
 
 def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
                       max_steps: int = 12, research_max_rounds: int = 3,
-                      verify: bool = True):
+                      verify: bool = True, recorder=None):
     """返回 (orchestrator_loop, get_report)。
 
     run_researcher(sub_question) -> AgentResult   (content = Findings JSON)
@@ -94,7 +94,8 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
     )
 
     loop = AgentLoop(client=client, system_prompt=prompt,
-                     registry=reg, max_steps=max_steps, name="orchestrator")
+                     registry=reg, max_steps=max_steps, name="orchestrator",
+                     recorder=recorder)
 
     def get_report():
         return holder.get("report")
