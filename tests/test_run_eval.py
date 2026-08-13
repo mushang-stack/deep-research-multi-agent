@@ -2,6 +2,8 @@ import json
 import threading
 import time
 
+import pytest
+
 from core.config import Config
 from core.schemas import Report, ReportSection
 from llm.base import LLMClient, LLMResponse
@@ -387,3 +389,35 @@ def test_main_system_baseline_with_explicit_results_flag(tmp_path):
               run_one_fn=_fake_run_one, judge_client=judge, cfg=cfg)
     assert rc == 0
     assert (out / "baseline" / "q1.json").exists()
+
+
+# ---------- telemetry(Task 7 / Task 8)----------
+
+def test_evaluate_question_emits_telemetry_with_judge_counts():
+    judge = FakeGLMClient([
+        LLMResponse(content='{"support":"supported","source_real":true,"reason":""}',
+                    usage={"prompt_tokens": 100, "completion_tokens": 10}),
+        LLMResponse(content='{"covered":true,"reason":""}',
+                    usage={"prompt_tokens": 80, "completion_tokens": 8}),
+    ])
+    item = {"id": "qt", "question": "Q", "key_facts": ["投机解码加速推理"]}
+    cfg = Config({"thresholds": {"grounding_min": 0.85},
+                  "pricing": {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28},
+                              "glm": {"input_per_1m": 0.28, "output_per_1m": 1.12}}})
+    sc = evaluate_question(item, cfg=cfg, judge_client=judge,
+                           run_one_fn=lambda q: (_canned_report(), _canned_history_with_findings()))
+    tel = sc["telemetry"]
+    assert tel["judge"]["calls"] == 2                    # 1 finding + 1 key_fact
+    assert tel["judge"]["prompt_tokens"] == 180          # 100+80
+    assert tel["judge"]["cost_usd"] == pytest.approx(180 / 1e6 * 0.28 + 18 / 1e6 * 1.12)
+    assert tel["wall_s"] >= 0.0
+    assert "generator" in tel and "utilization" in tel
+
+
+def test_evaluate_question_report_none_still_emits_telemetry():
+    judge = FakeGLMClient([])
+    item = {"id": "qn", "question": "Q", "key_facts": ["x"]}
+    sc = evaluate_question(item, cfg=None, judge_client=judge, run_one_fn=lambda q: (None, []))
+    assert sc["success"] is False
+    assert sc["telemetry"]["judge"]["calls"] == 0
+    assert sc["telemetry"]["cost_usd"]["total"] is None   # cfg 无 pricing

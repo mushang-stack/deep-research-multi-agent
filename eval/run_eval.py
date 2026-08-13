@@ -5,6 +5,7 @@
 import argparse
 import json
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from agents.system import build_system
 from agents.baseline import build_baseline_system
 from core.config import load_config
 from core.schemas import Report
+from core.telemetry import TelemetrySink, CountingClient, build_telemetry
 from llm.glm_client import GLMClient
 
 from .judge import judge_finding, judge_key_fact
@@ -43,10 +45,12 @@ def _build_fn_for(system: str):
     raise ValueError(f"unknown system: {system!r}")
 
 
-def run_one(question: str, cfg, *, client=None, search_client=None, system: str = "multi"):
+def run_one(question: str, cfg, *, client=None, search_client=None,
+            system: str = "multi", recorder=None):
     """跑一次系统,返回 (report, history)。report 可能为 None。"""
     build_fn = _build_fn_for(system)
-    loop, get_report = build_fn(cfg, client=client, search_client=search_client)
+    loop, get_report = build_fn(cfg, client=client, search_client=search_client,
+                                recorder=recorder)
     result = loop.run(question)
     return get_report(), result.history
 
@@ -54,37 +58,55 @@ def run_one(question: str, cfg, *, client=None, search_client=None, system: str 
 def evaluate_question(item: dict, cfg, *, judge_client,
                       client=None, search_client=None, run_one_fn=None,
                       judge_concurrency: int = 10, system: str = "multi"):
-    """单题评估 → scorecard。
+    """单题评估 → scorecard(含 telemetry)。
 
     run_one_fn 可注入(测试用,跳过真实 agent 链);为 None 时用真实 run_one。
     judge_concurrency: judge_finding/judge_key_fact 的并发上限(GLM-5.2 = 10)。
     """
     question = item["question"]
+    gen_sink = TelemetrySink()
     runner = run_one_fn or (lambda q: run_one(q, cfg, client=client,
-                                              search_client=search_client, system=system))
+                                              search_client=search_client, system=system,
+                                              recorder=gen_sink))
+    q_start = time.perf_counter()
     report, history = runner(question)
+    question_wall_s = time.perf_counter() - q_start
+    gen_rollup = gen_sink.aggregate_by_name()
+
+    pricing = cfg.get("pricing") if cfg is not None else None
 
     if report is None:
+        telemetry = build_telemetry(
+            gen_rollup, {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0},
+            judge_wall_s=0.0, question_wall_s=question_wall_s, pricing=pricing)
         return {"id": item["id"], "question": question,
-                **compute_question_metrics([], [], report_produced=False)}
+                **compute_question_metrics([], [], report_produced=False),
+                "telemetry": telemetry}
 
     findings = extract_findings(history)
     text = report_to_text(report)
     # 并发裁判:GLM-5.2 并发上限内,pool.map 保序,单条异常仍冒泡到 main 单题兜底
+    jc = CountingClient(judge_client)
+    j_start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=judge_concurrency) as pool:
         finding_verdicts = list(pool.map(
             lambda f: judge_finding(claim=f.get("claim", ""),
                                     excerpt=f.get("excerpt", ""),
                                     source_url=f.get("source_url", ""),
-                                    client=judge_client),
+                                    client=jc),
             findings))
         key_fact_verdicts = list(pool.map(
             lambda kf: judge_key_fact(key_fact=kf, report_text=text,
-                                      client=judge_client),
+                                      client=jc),
             item.get("key_facts", [])))
+    judge_wall_s = time.perf_counter() - j_start
+
+    telemetry = build_telemetry(gen_rollup, jc.snapshot(), judge_wall_s,
+                                question_wall_s, pricing)
     return {"id": item["id"], "question": question,
             **compute_question_metrics(finding_verdicts, key_fact_verdicts,
-                                       report_produced=True)}
+                                       report_produced=True),
+            "telemetry": telemetry}
 
 
 def load_benchmark(benchmark_dir) -> list[dict]:
