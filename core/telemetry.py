@@ -8,6 +8,8 @@
 import threading
 from dataclasses import dataclass
 
+from llm.base import LLMClient, LLMResponse
+
 
 @dataclass
 class AgentRecord:
@@ -64,3 +66,31 @@ def compute_cost(prompt_tokens, completion_tokens, pricing) -> float | None:
              + (completion_tokens / 1_000_000) * pricing["output_per_1m"]
     except (KeyError, TypeError):
         return None
+
+
+class CountingClient(LLMClient):
+    """包装裁判 client:委托 chat、Lock 下累加 usage 与调用次数。零改 judge 契约。"""
+
+    def __init__(self, inner: LLMClient):
+        self._inner = inner
+        self._lock = threading.Lock()
+        self.calls = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+
+    def chat(self, *, messages, tools=None, model=None, temperature=None, max_tokens=None):
+        resp = self._inner.chat(messages=messages, tools=tools, model=model,
+                                temperature=temperature, max_tokens=max_tokens)
+        u = resp.usage if isinstance(resp, LLMResponse) else {}
+        u = u or {}
+        with self._lock:
+            self.calls += 1
+            self.prompt_tokens += u.get("prompt_tokens", 0) or 0
+            self.completion_tokens += u.get("completion_tokens", 0) or 0
+        return resp
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {"calls": self.calls,
+                    "prompt_tokens": self.prompt_tokens,
+                    "completion_tokens": self.completion_tokens}

@@ -59,3 +59,56 @@ def test_compute_cost_basic():
 def test_compute_cost_none_when_pricing_missing():
     assert compute_cost(100, 50, None) is None
     assert compute_cost(100, 50, {}) is None
+
+
+from llm.base import LLMClient, LLMResponse
+from core.telemetry import CountingClient
+
+
+class _ScriptedJudge(LLMClient):
+    """按顺序返回带 usage 的响应。"""
+    def __init__(self, responses):
+        self._r = list(responses)
+
+    def chat(self, *, messages, tools=None, model=None, temperature=None, max_tokens=None):
+        return self._r.pop(0)
+
+
+def test_counting_client_delegates_and_accumulates():
+    inner = _ScriptedJudge([
+        LLMResponse(content="a", usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        LLMResponse(content="b", usage={"prompt_tokens": 20, "completion_tokens": 8}),
+    ])
+    jc = CountingClient(inner)
+    assert jc.chat(messages=[]).content == "a"
+    assert jc.chat(messages=[]).content == "b"
+    snap = jc.snapshot()
+    assert snap["calls"] == 2
+    assert snap["prompt_tokens"] == 30
+    assert snap["completion_tokens"] == 13
+
+
+def test_counting_client_handles_missing_usage():
+    inner = _ScriptedJudge([LLMResponse(content="x")])
+    jc = CountingClient(inner)
+    jc.chat(messages=[])
+    assert jc.snapshot()["calls"] == 1
+    assert jc.snapshot()["prompt_tokens"] == 0
+
+
+def test_counting_client_concurrent_safe():
+    inner = _ScriptedJudge([
+        LLMResponse(content="x", usage={"prompt_tokens": 1, "completion_tokens": 1})
+    ] * 100)
+    jc = CountingClient(inner)
+
+    def worker():
+        jc.chat(messages=[])
+    threads = [threading.Thread(target=worker) for _ in range(100)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    snap = jc.snapshot()
+    assert snap["calls"] == 100
+    assert snap["prompt_tokens"] == 100
