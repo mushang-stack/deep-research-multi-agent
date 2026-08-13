@@ -96,3 +96,27 @@ def test_list_traces(tmp_path):
     save_trace(str(tmp_path / "a.json"), "q1", [], None, {}, "failed")
     save_trace(str(tmp_path / "b.json"), "q2", [], None, {}, "failed")
     assert len(list_traces(traces_dir=str(tmp_path))) == 2
+
+
+def test_run_research_no_report_no_exception_branch():
+    # run 成功但 holder 空(get_report→None,真实场景曾发生)→ run_done(success=False),不发 error
+    sink = EventSink(); tele = TelemetrySink()
+    out = run_research("q", _cfg(), sink, tele, run_fn=_fake_run_fn(report=None))
+    assert out is None
+    kinds = [e["kind"] for e in sink.snapshot()]
+    assert "error" not in kinds
+    done = next(e for e in sink.snapshot() if e["kind"] == "run_done")
+    assert done["payload"]["success"] is False
+
+
+def test_run_research_clears_global_sink_on_all_paths():
+    # 成功 / 无报告 / 异常 三条路径都应在 finally 里 clear_sink(不泄漏全局)
+    from agents.observe import get_sink
+    rep = Report(sections=[ReportSection(heading="H", content="C", citations=[])], sources=[])
+
+    run_research("q", _cfg(), EventSink(), TelemetrySink(), run_fn=_fake_run_fn(report=rep))
+    assert get_sink() is None
+    run_research("q", _cfg(), EventSink(), TelemetrySink(), run_fn=_fake_run_fn(report=None))
+    assert get_sink() is None
+    run_research("q", _cfg(), EventSink(), TelemetrySink(), run_fn=_fake_run_fn(exc=RuntimeError("x")))
+    assert get_sink() is None
