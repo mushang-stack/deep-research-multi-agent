@@ -23,13 +23,16 @@ def test_sink_records_and_snapshots():
     assert snap[0]["ts"] >= 0.0
 
 
-def test_sink_ts_monotonic_increasing():
+def test_sink_ts_monotonic_nondecreasing():
+    # 时钟分辨率限制下单次 record 间隔可能读同值 → 断言「非减」而非「严格递增」;
+    # 跨足够长的时间窗必有一次严格递增,验证 ts 确有被打戳(非恒 0)。
     sink = EventSink()
-    sink.record(Event(kind="a", role=None, text="", payload={}))
-    time.sleep(0.01)
-    sink.record(Event(kind="b", role=None, text="", payload={}))
-    s = sink.snapshot()
-    assert s[1]["ts"] > s[0]["ts"]
+    for _ in range(5):
+        sink.record(Event(kind="a", role=None, text="", payload={}))
+        time.sleep(0.02)
+    ts = [e["ts"] for e in sink.snapshot()]
+    assert ts == sorted(ts)   # 单调不减
+    assert ts[-1] > ts[0]     # 跨 ~0.1s 必有严格递增(验证打戳生效)
 
 
 def test_sink_concurrent_record_thread_safe():
