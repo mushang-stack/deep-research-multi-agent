@@ -118,8 +118,29 @@ python -m eval.run_eval                                       # 5 题评估 → 
 
 `config.yaml` 是单一配置源(模型 / 工具参数 / 护栏阈值 / 并发上限)。
 
+## M4 · Streamlit 实时编排可视化
+
+实时把多 agent 协作过程(拆解 → 并行检索 → 验证 → 缺口再检索 → 撰写)可视化,支持真实运行与回放双模式。
+
+**运行:**
+
+```bash
+streamlit run ui/app.py
+```
+
+- **真实运行**:输入研究问题 → 后台线程跑编排,前端轮询事件实时滚动时间线 + Agent 利用率/成本条 → 完成渲染带引用报告并自动录制 trace(`ui/traces/*.json`)。
+- **回放**:选择已录制 trace,按节奏重放同一渲染路径(零失败风险,面试 live demo 兜底)。
+
+**无头录 trace(批量素材 / DoD):**
+
+```bash
+python -m ui.record_trace "对比 RAG 与微调的适用场景"
+```
+
+**实时信号源**:`agents/observe.py:emit` 类型化事件总线(取代 `progress` 调用点,零改 agent 决策逻辑)+ `core/telemetry.py` 运维遥测。单题真跑 ~5min / ~$0.05(DeepSeek,cache-miss 口径)。
+
 ## 后续里程碑
 
 - **M3 后续 · 基线对比** ✅:单 agent 基线 + Verifier 消融已落地(见上节)。
 - **M3 后续 · 运维遥测**:5 维运维指标(延迟 / 成本 / Automation Rate / Agent Utilization,需全链路遥测层)。成功率已在 eval 附带统计。
-- **M4**:Streamlit 实时编排可视化。
+- **M4 · Streamlit 可视化** ✅:实时编排可视化(真实运行 + 回放双模式),见上节。
