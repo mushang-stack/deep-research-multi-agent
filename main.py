@@ -7,23 +7,9 @@ from dotenv import load_dotenv
 from core.config import load_config
 from agents.system import build_system
 from agents.observe import progress
+from ui.view import render_report_markdown
 
 load_dotenv()  # 加载 .env 到环境变量(真实冒烟需 DEEPSEEK/BOCHA key)
-
-
-def render_markdown(report) -> str:
-    lines = []
-    for sec in report.sections:
-        lines.append(f"## {sec.heading}\n")
-        lines.append(sec.content)
-        if sec.citations:
-            lines.append("\n\n*引用: " + ", ".join(sec.citations) + "*")
-        lines.append("\n")
-    if report.sources:
-        lines.append("## 来源\n")
-        for i, s in enumerate(report.sources, 1):
-            lines.append(f"{i}. {s}")
-    return "\n".join(lines)
 
 
 def main(argv=None) -> int:
@@ -42,7 +28,7 @@ def main(argv=None) -> int:
         print("未能生成报告(Orchestrator 未产出 write_report)。", file=sys.stderr)
         return 2
     progress(f"[done] ✓ 报告生成完成({len(report.sections)} 节)")
-    print(render_markdown(report))
+    print(render_report_markdown(report))
     return 0
 
 
