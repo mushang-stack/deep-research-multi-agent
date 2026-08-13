@@ -4,7 +4,7 @@
 
 > 详细设计见 [spec](docs/superpowers/specs/2026-08-08-deep-research-multi-agent-design.md)。
 
-## 当前状态:M3 完成 + 单 agent 基线对比与 Verifier 消融 ✅
+## 当前状态:M3 完成 + 基线对比/消融 + 运维遥测 ✅
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
@@ -12,8 +12,9 @@
 | **M2 编排** | 四 agent(orchestrator / researcher / verifier / writer)+ 子 agent `ThreadPoolExecutor` 并行派发 + 上下文隔离(JSON 清洗/parse/精简回填)+ Report holder 硬提取(最终报告不经 Orchestrator 转述) | ✅ |
 | **M3 评估体系** | 4 质量指标(Grounding / 引用准确率 / 覆盖率 / 幻觉率)+ GLM 逐条裁判 + 5 题基准集 + 上线门槛 | ✅ |
 | **M3 后续 · 基线对比** | 三档系统(multi / no_verify 消融 / 单 agent baseline)+ `--system` 切换 + 三方对比 + Verifier 消融归因 | ✅ |
+| **M3 后续 · 运维遥测** | 延迟/成本/利用率三柱埋点(`TelemetrySink` 注入 `AgentLoop` + `CountingClient` 裁判计数)+ pricing 成本估算 + 每题 telemetry/scorecard 聚合/控制台表 | ✅ |
 
-**真实基线(5 题)**:mean_grounding = **0.932**(门槛 0.85,**passed**),引用准确率 0.954,覆盖率 0.60,幻觉率 0.046。**基线对比见下节(多 agent+verifier 架构 Grounding +0.089、幻觉率 −0.024 超越单 agent)**。180 单测全绿(全 mock 不烧 API)。
+**真实基线(5 题)**:mean_grounding = **0.932**(门槛 0.85,**passed**),引用准确率 0.954,覆盖率 0.60,幻觉率 0.046。**基线对比见下节(多 agent+verifier 架构 Grounding +0.089、幻觉率 −0.024 超越单 agent)**。206 单测全绿(全 mock 不烧 API)。
 
 ### 三阶段质量修复(评估驱动)
 
@@ -45,6 +46,36 @@
 
 - **裁判并发**:GLM 逐条裁判 `ThreadPoolExecutor`(上限 10),单题裁判 ~5min → ~30s。
 - **题间并发**:`eval.question_concurrency`(默认 1 串行向后兼容;3 时 5 题 ~40min → ~14min,但并发峰值偶发限流,按 DeepSeek 配额调)。
+
+### 运维遥测(延迟 / 成本 / 利用率)
+
+系统在 eval 管线上内置运维可观测,每次 `python -m eval.run_eval` 除质量 scorecard 外,
+额外产出**延迟/成本/利用率三柱**报告(逐题 `telemetry` 字段 + scorecard 聚合 + 控制台表)。
+
+**埋点设计(单点覆盖,最小侵入):**
+- **生成链路**:`TelemetrySink` 注入 `AgentLoop`(全仓唯一执行原语,自带 agent 名
+  `orchestrator/researcher/verifier/writer`)。`run()` 内累加各步 token、计步、
+  `perf_counter` 计墙钟,收敛/触顶都上报 —— **一处覆盖四柱 agent**。
+- **裁判链路**:`CountingClient` 包装 GLM judge client,Lock 下累加 usage 与调用次数,
+  **零改 judge 契约**。
+- 顺修一个 bug:`AgentResult.usage` 原只留最后一步,多步 researcher 漏算约 4/5 token,
+  现改为跨步聚合(由专门单测锁定)。
+
+**三柱口径:**
+
+| 柱 | 指标 | 口径 |
+|---|---|---|
+| 延迟 | `wall_s` | 整批 / 单题 / 单 agent 角色(researcher 按单个计,不叠加并发) |
+| 成本 | `cost_usd` | token/1M × 单价;**产品链路(DeepSeek)与评估链路(GLM)分列** |
+| 利用率 | `budget_used` | `steps / max_steps`(researcher 理想 4-5 / 上限 6);附触顶(Escalation)次数 |
+
+**成本估算说明:** 单价在 `config.yaml` 的 `pricing` 段,取公开标价(截至 2026-08,近似,
+可在 config 调整):DeepSeek-chat(V4-Flash)取 cache-miss 保守价 input \$0.14 / output
+\$0.28 per 1M;GLM-5.2 实标未公开,暂按同族 GLM-4.5(¥2/¥8 per 1M)@7.2 换算 input \$0.28 /
+output \$1.12。**这是量级估算而非计费依据。**
+
+真实样例(multi 5 题):
+<!-- TELEMETRY_SAMPLE_INSERT -->
 
 ## 架构
 
