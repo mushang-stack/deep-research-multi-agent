@@ -3,6 +3,8 @@ pytest 默认捕获 stderr,单测输出不受影响;设 RESEARCH_QUIET=1 可关�
 import os
 import sys
 
+from core.events import Event
+
 
 def progress(msg: str) -> None:
     """把一行进度打到 stderr。RESEARCH_QUIET=1 时静默。运行时读环境变量(非导入时),
@@ -11,8 +13,6 @@ def progress(msg: str) -> None:
         return
     print(msg, file=sys.stderr, flush=True)
 
-
-from core.events import Event
 
 _active_sink = None
 

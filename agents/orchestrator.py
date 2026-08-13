@@ -66,6 +66,7 @@ def make_orchestrator(*, client, run_researcher, run_verifier, run_writer,
 
     def _write_report(outline: str, verified_findings: list[dict]) -> dict:
         if not verified_findings:
+            # 防御:无 verified findings 时不调 writer(避免空报告;博查耗尽等场景曾暴露此路径)
             emit("warn", None,
                  "[orchestrator] ✗ write_report 被拒绝:无 verified findings(避免空报告)",
                  reason="write_refused_no_findings")
