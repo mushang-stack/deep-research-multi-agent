@@ -1,13 +1,13 @@
 """Streamlit 单页:深度研究多 agent 实时编排可视化。
 运行:streamlit run ui/app.py
 双模式:真实运行(后台线程 + 事件轮询)/ 回放(从 trace JSON 回放)。"""
+import os
 import threading
 import time
 
 import streamlit as st
 from dotenv import load_dotenv
 
-from agents.observe import set_sink, clear_sink  # noqa: F401(set_sink/clear_sink 由 controller 间接用)
 from core.config import load_config
 from core.events import EventSink
 from core.schemas import Report
@@ -81,7 +81,7 @@ else:  # 回放
     if not traces:
         st.info("暂无 trace。先在「真实运行」跑一次(或等 DoD 录制的开箱 trace)。")
     else:
-        choice = st.selectbox("选择 trace", traces)
+        choice = st.selectbox("选择 trace", traces, format_func=os.path.basename)
         speed = st.select_slider("回放速度", options=["立即", "快", "慢"], value="快")
         if st.button("▶ 回放") and choice:
             data = load_trace(choice)
