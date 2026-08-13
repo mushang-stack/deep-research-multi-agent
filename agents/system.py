@@ -9,7 +9,7 @@ from .researcher import make_researcher
 from .verifier import make_verifier
 from .writer import make_writer
 from .orchestrator import make_orchestrator
-from .observe import progress
+from .observe import progress, emit
 
 
 def build_system(config: Config, *, client: LLMClient | None = None,
@@ -36,12 +36,16 @@ def build_system(config: Config, *, client: LLMClient | None = None,
     research_max_rounds = config["guards"]["research_max_rounds"]
 
     def _run_researcher(sub_question):
-        progress(f"  [researcher] 检索子问题:{sub_question}")
+        emit("research_start", "researcher",
+             f"  [researcher] 检索子问题:{sub_question}",
+             sub_question=sub_question)
         result = make_researcher(client=client, search_client=search_client,
                                  max_chars=max_chars, max_steps=researcher_max_steps,
                                  recorder=recorder).run(sub_question)
         content = result.content or ""
-        progress(f"  [researcher] 完成 → content {len(content)} 字,前 120 字:{content[:120]!r}")
+        emit("research_done", "researcher",
+             f"  [researcher] 完成 → content {len(content)} 字",
+             sub_question=sub_question, content_len=len(content))
         return result
 
     def _run_verifier(findings_json):
