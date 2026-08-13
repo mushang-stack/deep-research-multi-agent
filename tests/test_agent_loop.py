@@ -3,6 +3,7 @@ import pytest
 from core.agent_loop import AgentLoop, AgentResult
 from core.tool_registry import ToolRegistry
 from core.robust import Escalation
+from core.telemetry import TelemetrySink
 from llm.base import LLMClient, LLMResponse, ToolCall
 
 
@@ -140,3 +141,59 @@ def test_escalation_carries_context():
         loop.run("loop")
     assert ei.value.context["name"] == "researcher"
     assert ei.value.context["steps"] == 3
+
+
+def test_usage_aggregates_across_steps():
+    # 3 步:前两步 tool_call,第三步收敛 → usage 求和(原 bug 只留末步)
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[ToolCall(id="c1", name="echo", arguments='{"text":"a"}')]),
+        LLMResponse(content="", usage={"prompt_tokens": 200, "completion_tokens": 20},
+                    tool_calls=[ToolCall(id="c2", name="echo", arguments='{"text":"b"}')]),
+        LLMResponse(content="done", usage={"prompt_tokens": 300, "completion_tokens": 30}),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo())
+    out = loop.run("x")
+    assert out.usage == {"prompt_tokens": 600, "completion_tokens": 60}
+
+
+def test_recorder_records_on_converge():
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[ToolCall(id="c1", name="echo", arguments='{"text":"a"}')]),
+        LLMResponse(content="done", usage={"prompt_tokens": 50, "completion_tokens": 5}),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=12, name="researcher", recorder=sink)
+    loop.run("x")
+    snap = sink.snapshot()
+    assert len(snap) == 1
+    assert snap[0]["name"] == "researcher"
+    assert snap[0]["steps"] == 2
+    assert snap[0]["max_steps"] == 12
+    assert snap[0]["prompt_tokens"] == 150
+    assert snap[0]["hit_max"] is False
+
+
+def test_recorder_records_hit_max_before_escalation():
+    looping = LLMResponse(content="", usage={"prompt_tokens": 10, "completion_tokens": 1},
+                          tool_calls=[ToolCall(id="c1", name="echo", arguments='{"text":"x"}')])
+    c = FakeClient([looping] * 100)
+    reg = ToolRegistry()
+    reg.register("echo", lambda text: "ok", description="d", parameters={"type": "object"})
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=reg, max_steps=3,
+                     name="researcher", recorder=sink)
+    with pytest.raises(Escalation):
+        loop.run("loop")
+    snap = sink.snapshot()
+    assert len(snap) == 1
+    assert snap[0]["hit_max"] is True
+    assert snap[0]["steps"] == 3
+
+
+def test_recorder_none_backward_compat():
+    c = FakeClient([LLMResponse(content="ok")])
+    loop = AgentLoop(client=c, system_prompt="sys")       # 不传 recorder
+    assert loop.run("hi").content == "ok"
