@@ -80,7 +80,7 @@ def timeline_rows(events):
 
 def render_timeline_md(events) -> str:
     rows = timeline_rows(events)
-    lines = ["**实时编排**", ""]
+    lines = ["**实时编排**"]  # 事件用 \n\n 分段(Streamlit 会折叠段内单个换行)
     for r in rows:
         role_tag = f"**{r['role']}** " if r["role"] else ""
         extra = ""
@@ -95,7 +95,7 @@ def render_timeline_md(events) -> str:
             extra = f"  → {p.get('sections', 0)} 节"
         par = f"  ｜并行 ×{r['parallel']}" if r["parallel"] else ""
         lines.append(f"{r['icon']} {role_tag}{_clean_text(r['text'])}{extra}{par}")
-    return "\n".join(lines)
+    return "\n\n".join(lines)
 
 
 def _bar(frac) -> str:
@@ -123,10 +123,10 @@ def render_telemetry_md(rollup, pricing) -> str:
     tiles = telemetry_tiles(rollup, pricing)
     if not tiles:
         return ""
-    lines = ["**Agent 利用率(实时)**", ""]
+    lines = ["**Agent 利用率(实时)**"]  # 同 timeline:每行自成段落
     for name, t in tiles.items():
         pct = int(round(t["budget_used"] * 100))
         cost = f"  💰 ${t['cost_usd']:.4f}" if t["cost_usd"] is not None else ""
         lines.append(f"`{name}`  {_bar(t['budget_used'])}  "
                      f"{t['mean_steps']:.1f}/{t['max_steps']} 步 ({pct}%){cost}")
-    return "\n".join(lines)
+    return "\n\n".join(lines)

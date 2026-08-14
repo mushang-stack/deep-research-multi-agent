@@ -129,3 +129,28 @@ def test_run_done_icon_reflects_success():
                            "payload": {"success": False}, "ts": 0.0}])
     assert ok[0]["icon"] == "✓"
     assert fail[0]["icon"] == "✗"
+
+
+def test_render_timeline_md_one_event_per_paragraph():
+    # Streamlit markdown 会把段内单个 \n 折叠成空格 → 每个事件须自成一段落(\n\n 分隔)
+    events = [
+        {"kind": "run_start", "role": None, "text": "[start] AAA", "payload": {}, "ts": 0.0},
+        {"kind": "write_start", "role": "writer", "text": "[writer] BBB", "payload": {}, "ts": 0.1},
+    ]
+    md = render_timeline_md(events)
+    parts = md.split("\n\n")
+    hits = [p for p in parts if "AAA" in p or "BBB" in p]
+    assert len(hits) == 2  # 两个事件各成一段,不粘连成一大段
+
+
+def test_render_telemetry_md_one_agent_per_paragraph():
+    rollup = {
+        "researcher": {"name": "researcher", "max_steps": 6, "mean_steps": 5.0,
+                       "prompt_tokens": 100, "completion_tokens": 20},
+        "writer": {"name": "writer", "max_steps": 12, "mean_steps": 1.0,
+                   "prompt_tokens": 50, "completion_tokens": 10},
+    }
+    md = render_telemetry_md(rollup, {"deepseek": {"input_per_1m": 0.14, "output_per_1m": 0.28}})
+    parts = md.split("\n\n")
+    hits = [p for p in parts if "researcher" in p or "writer" in p]
+    assert len(hits) == 2
