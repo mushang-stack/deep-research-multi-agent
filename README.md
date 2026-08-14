@@ -4,7 +4,7 @@
 
 > 详细设计见 [spec](docs/superpowers/specs/2026-08-08-deep-research-multi-agent-design.md)。
 
-## 当前状态:M3 完成 + 基线对比/消融 + 运维遥测 ✅
+## 当前状态:全部里程碑完成(M1–M4)✅
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
@@ -13,8 +13,9 @@
 | **M3 评估体系** | 4 质量指标(Grounding / 引用准确率 / 覆盖率 / 幻觉率)+ GLM 逐条裁判 + 5 题基准集 + 上线门槛 | ✅ |
 | **M3 后续 · 基线对比** | 三档系统(multi / no_verify 消融 / 单 agent baseline)+ `--system` 切换 + 三方对比 + Verifier 消融归因 | ✅ |
 | **M3 后续 · 运维遥测** | 延迟/成本/利用率三柱埋点(`TelemetrySink` 注入 `AgentLoop` + `CountingClient` 裁判计数)+ pricing 成本估算 + 每题 telemetry/scorecard 聚合/控制台表 | ✅ |
+| **M4 · 实时编排可视化** | Streamlit 双模式(真实运行 + 回放)+ 类型化事件总线(`core/events` + `observe.emit` 取代 progress 调用点,零改 agent 决策逻辑)+ 实时利用率/成本条 + trace 自动录制/回放 | ✅ |
 
-**真实基线(5 题)**:mean_grounding = **0.932**(门槛 0.85,**passed**),引用准确率 0.954,覆盖率 0.60,幻觉率 0.046。**基线对比见下节(多 agent+verifier 架构 Grounding +0.089、幻觉率 −0.024 超越单 agent)**。206 单测全绿(全 mock 不烧 API)。
+**真实基线(5 题)**:mean_grounding = **0.932**(门槛 0.85,**passed**),引用准确率 0.954,覆盖率 0.60,幻觉率 0.046。**基线对比见下节(多 agent+verifier 架构 Grounding +0.089、幻觉率 −0.024 超越单 agent)**。249 单测全绿(全 mock 不烧 API)。
 
 ### 三阶段质量修复(评估驱动)
 
@@ -107,6 +108,7 @@ python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
 cp .env.example .env   # 填入 DEEPSEEK / GLM / BOCHA key(M1 测试不需要)
 pytest                  # 全单测(全 mock,不烧 API)
+streamlit run ui/app.py # 实时编排 demo(回放模式开箱即用,无需 API key;见 M4 节)
 ```
 
 ## 手动真实冒烟(会产生少量 API 费用)
@@ -139,8 +141,10 @@ python -m ui.record_trace "对比 RAG 与微调的适用场景"
 
 **实时信号源**:`agents/observe.py:emit` 类型化事件总线(取代 `progress` 调用点,零改 agent 决策逻辑)+ `core/telemetry.py` 运维遥测。单题真跑 ~5min / ~$0.05(DeepSeek,cache-miss 口径)。
 
-## 后续里程碑
+## 项目状态与可选后续
 
-- **M3 后续 · 基线对比** ✅:单 agent 基线 + Verifier 消融已落地(见上节)。
-- **M3 后续 · 运维遥测**:5 维运维指标(延迟 / 成本 / Automation Rate / Agent Utilization,需全链路遥测层)。成功率已在 eval 附带统计。
-- **M4 · Streamlit 可视化** ✅:实时编排可视化(真实运行 + 回放双模式),见上节。
+**M1–M4 全部完成**(2026-08-08 spec → 2026-08-14 M4 收口),249 单测全绿,各阶段真实跑数据见上各节。可选后续方向(基于上述真实读数,非承诺):
+
+- **成功率**:multi 档 orchestrator 偶发触 `max_steps` 护栏(80% vs 基线 100%),可在护栏 / 提示词层继续调优。
+- **覆盖率**:mean 0.60,受 researcher 检索面与 agent 不感知 key_facts 的本质限制。
+- **Verifier ROI**:消融显示单独贡献小(Grounding +0.024),可评估简化或与检索层合并的取舍。
