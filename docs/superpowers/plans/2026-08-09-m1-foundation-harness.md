@@ -1560,7 +1560,7 @@ Expected: PASS(1 passed)
 - [ ] **Step 3: 创建 `README.md`**
 
 ````markdown
-# AI-PM-Agent · 深度研究型多 Agent 系统
+# deep-research-multi-agent · 深度研究型多 Agent 系统
 
 基于 DeepSeek 的**模型自驱**多 Agent 编排系统:接受研究问题 → 规划 / 检索 / 验证 / 撰写 → 产出带引用的研究报告。**自研 harness**(非现成 SDK),核心原语 `AgentLoop` + `ToolRegistry` + 重试 / 兜底解析 / escalation。
 

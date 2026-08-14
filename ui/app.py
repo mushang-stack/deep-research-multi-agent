@@ -18,11 +18,11 @@ from ui.controller import run_research, save_trace, load_trace, list_traces, tra
 load_dotenv()
 _TIMEOUT_S = 480  # 8 分钟硬上限,demo 安全网
 
-st.set_page_config(page_title="AI-PM-Agent · 深度研究", layout="wide")
+st.set_page_config(page_title="deep-research-multi-agent · 深度研究", layout="wide")
 cfg = load_config()
 PRICING = cfg.get("pricing") or {}
 
-st.title("AI-PM-Agent · 深度研究多 Agent 编排")
+st.title("deep-research-multi-agent · 深度研究多 Agent 编排")
 mode = st.radio("模式", ["真实运行", "回放"], horizontal=True)
 
 

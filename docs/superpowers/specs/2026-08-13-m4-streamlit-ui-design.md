@@ -193,7 +193,7 @@ def run_research(question, cfg, event_sink, telemetry_sink, *, run_fn=None):
 ### 8.1 布局
 
 ```
-┌─ AI-PM-Agent · 深度研究多 Agent 编排 ──────────────────┐
+┌─ deep-research-multi-agent · 深度研究多 Agent 编排 ──────────────────┐
 │  模式: ● 真实运行   ○ 回放 [▾ 选 trace]               │
 │  研究问题:[____________________________]  [▶ 开始]    │
 │                                                        │

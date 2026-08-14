@@ -1,4 +1,4 @@
-# AI-PM-Agent · 深度研究型多 Agent 系统
+# deep-research-multi-agent · 深度研究型多 Agent 系统
 
 基于 DeepSeek 的**模型自驱**多 Agent 编排:输入一个研究问题,系统自主完成 **规划 → 并行检索 → 验证 → 撰写**,产出带引用的研究报告。自研 harness,不套现成 SDK。
 
