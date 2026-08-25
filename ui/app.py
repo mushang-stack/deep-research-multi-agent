@@ -2,11 +2,17 @@
 运行:streamlit run ui/app.py
 双模式:真实运行(后台线程 + 事件轮询)/ 回放(从 trace JSON 回放)。"""
 import os
+import sys
 import threading
 import time
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
+
+# streamlit run 只把主脚本目录(ui/)加入 sys.path、不含项目根,显式补上,
+# 使 `streamlit run ui/app.py` 可直接运行(main.py / pytest / python -m 入口不受影响)。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import load_config
 from core.events import EventSink
