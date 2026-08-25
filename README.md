@@ -70,6 +70,7 @@ main.py    CLI 入口
 ## 文档
 
 - [产品 PRD:v2.0 产品化规划](docs/PRD.md)
+- [原型蓝图:v2.0 Figma 原型设计](docs/PROTOTYPE_BLUEPRINT.md)
 - [项目详报:真实数据与工程过程](docs/PROJECT_REPORT.md)
 - [整体设计 spec](docs/superpowers/specs/2026-08-08-deep-research-multi-agent-design.md)
 - 各阶段 spec / 实施计划见 [`docs/superpowers/`](docs/superpowers/)
