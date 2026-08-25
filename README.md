@@ -70,4 +70,5 @@ main.py    CLI 入口
 ## 文档
 
 - [产品 PRD:v2.0 产品化规划](docs/PRD.md)
+- [可交互原型(Figma)· v2.0](https://www.figma.com/proto/cfVP05FJVll5Hba2yV09sq/%E6%B7%B1%E5%BA%A6%E7%A0%94%E7%A9%B6%E5%8A%A9%E6%89%8B-%C2%B7-v2.0-%E4%BA%A4%E4%BA%92%E5%8E%9F%E5%9E%8B?node-id=0-1)
 - [项目详报:真实数据与工程过程](docs/PROJECT_REPORT.md)
