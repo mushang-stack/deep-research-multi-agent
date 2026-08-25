@@ -5,8 +5,6 @@
 
 基于 DeepSeek 的**模型自驱**多 Agent 编排系统:接受研究问题 → 规划 / 检索 / 验证 / 撰写 → 产出带引用的研究报告。**自研 harness**(非现成 SDK),核心原语 `AgentLoop` + `ToolRegistry` + 重试 / 兜底解析 / escalation。
 
-> 详细设计见 [spec](docs/superpowers/specs/2026-08-08-deep-research-multi-agent-design.md)。
-
 ## 当前状态:全部里程碑完成(M1–M4)✅
 
 | 里程碑 | 内容 | 状态 |

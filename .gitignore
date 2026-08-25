@@ -22,3 +22,7 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 私有过程文档(本地保留,不随公开仓库发布)
+docs/superpowers/
+docs/PROTOTYPE_BLUEPRINT.md
