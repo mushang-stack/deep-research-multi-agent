@@ -242,3 +242,46 @@ def test_config_has_pricing_section():
     for m in ("deepseek", "glm"):
         assert pricing[m]["input_per_1m"] > 0
         assert pricing[m]["output_per_1m"] > 0
+
+
+# ---------- v2.1 Task 2: AgentRecord 降级/压缩维度(带默认值,向后兼容) ----------
+def _rec(**kw):
+    base = dict(name="researcher", steps=3, max_steps=6, prompt_tokens=100,
+                completion_tokens=10, wall_s=1.0, hit_max=False)
+    base.update(kw)
+    return AgentRecord(**base)
+
+
+def test_agent_record_new_fields_default_backward_compat():
+    r = _rec()   # 老式构造(不带新字段)不破
+    assert r.degraded is False and r.stop_reason == "" and r.compactions == 0
+
+
+def test_aggregate_by_name_rolls_up_new_dimensions():
+    sink = TelemetrySink()
+    sink.record(_rec(degraded=True, stop_reason="token_budget", compactions=2))
+    sink.record(_rec(compactions=1))
+    out = sink.aggregate_by_name()["researcher"]
+    assert out["n"] == 2
+    assert out["degraded"] == 1
+    assert out["compactions"] == 3
+
+
+def test_build_telemetry_utilization_carries_new_dimensions():
+    rollup = {"researcher": {"name": "researcher", "n": 1, "mean_steps": 3.0, "max_steps": 6,
+                             "prompt_tokens": 100, "completion_tokens": 10, "wall_s": 1.0,
+                             "hit_max": 0, "degraded": 1, "compactions": 2}}
+    t = build_telemetry(rollup, {}, 0.5, 2.0, {})
+    assert t["utilization"]["researcher"]["degraded"] == 1
+    assert t["utilization"]["researcher"]["compactions"] == 2
+
+
+def test_aggregate_telemetry_agents_carry_degraded_and_compactions():
+    util = {"researcher": {"mean_steps": 3.0, "budget_used": 0.5,
+                           "degraded": 1, "compactions": 2}}
+    t = {"wall_s": 2.0, "cost_usd": {"generator": None, "judge": None, "total": None},
+         "utilization": util}
+    out = aggregate_telemetry([t, t])
+    a = out["agents"]["researcher"]
+    assert a["degraded_total"] == 2          # 2 题 × 1 次
+    assert a["mean_compactions"] == 2.0      # 每题平均压缩次数

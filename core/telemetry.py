@@ -20,6 +20,9 @@ class AgentRecord:
     completion_tokens: int
     wall_s: float
     hit_max: bool
+    degraded: bool = False      # P1:partial 降级产出
+    stop_reason: str = ""       # "" 正常 | "max_steps" | "token_budget"
+    compactions: int = 0        # P2:压缩触发次数
 
 
 class TelemetrySink:
@@ -43,7 +46,8 @@ class TelemetrySink:
             d = out.setdefault(r.name, {"name": r.name, "n": 0, "total_steps": 0,
                                         "max_steps": r.max_steps,
                                         "prompt_tokens": 0, "completion_tokens": 0,
-                                        "wall_s": 0.0, "hit_max": 0})
+                                        "wall_s": 0.0, "hit_max": 0,
+                                        "degraded": 0, "compactions": 0})
             d["n"] += 1
             d["total_steps"] += r.steps
             d["max_steps"] = max(d["max_steps"], r.max_steps)
@@ -51,6 +55,8 @@ class TelemetrySink:
             d["completion_tokens"] += r.completion_tokens
             d["wall_s"] += r.wall_s
             d["hit_max"] += int(r.hit_max)
+            d["degraded"] += int(r.degraded)
+            d["compactions"] += r.compactions
         for d in out.values():
             d["mean_steps"] = d["total_steps"] / d["n"] if d["n"] else 0.0
             d["wall_s"] = d["wall_s"] / d["n"] if d["n"] else 0.0
@@ -115,7 +121,9 @@ def build_telemetry(gen_rollup, judge_stat, judge_wall_s, question_wall_s, prici
         mx = d.get("max_steps", 0) or 0
         utilization[name] = {"mean_steps": ms, "max_steps": mx,
                              "budget_used": (ms / mx) if mx else 0.0,
-                             "hit_max": d.get("hit_max", 0)}
+                             "hit_max": d.get("hit_max", 0),
+                             "degraded": d.get("degraded", 0),
+                             "compactions": d.get("compactions", 0)}
 
     return {
         "wall_s": question_wall_s,
@@ -149,13 +157,17 @@ def aggregate_telemetry(per_question_telemetries, pricing=None) -> dict:
     total_cost = (None if (g is None and j is None and tot is None)
                   else {"generator": g, "judge": j, "total": tot})
 
-    steps, budget = {}, {}
+    steps, budget, degraded, compactions = {}, {}, {}, {}
     for t in valid:
         for name, u in t.get("utilization", {}).items():
             steps.setdefault(name, []).append(u.get("mean_steps", 0.0))
             budget.setdefault(name, []).append(u.get("budget_used", 0.0))
+            degraded.setdefault(name, []).append(u.get("degraded", 0))
+            compactions.setdefault(name, []).append(u.get("compactions", 0))
     agents = {name: {"mean_steps": sum(v) / len(v),
-                     "mean_budget_used": sum(budget[name]) / len(budget[name])}
+                     "mean_budget_used": sum(budget[name]) / len(budget[name]),
+                     "degraded_total": int(sum(degraded[name])),
+                     "mean_compactions": sum(compactions[name]) / len(compactions[name])}
               for name, v in steps.items()}
 
     return {"n_questions": n, "mean_wall_s": mean_wall, "total_cost_usd": total_cost,
