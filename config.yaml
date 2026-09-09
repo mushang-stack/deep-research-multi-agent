@@ -18,6 +18,7 @@ tools:
     count: 8
   web_read:                        # trafilatura 本地提取
     max_chars: 8000                # 正文截断,防爆上下文
+  max_tool_result_chars: null      # 循环层工具结果截断(null=不截断;与 web_read.max_chars 互为防御纵深)
 
 guards:
   agent_max_steps: 12              # 单 agent 最大循环步数(防无限循环/成本失控)
@@ -26,6 +27,13 @@ guards:
   baseline_max_steps: 16          # 单 agent 基线步数(M3 后续 C:≥ agent_max_steps,故意宽裕抗质疑)
   request_max_retries: 3           # 瞬时错误重试次数
   request_backoff_base: 1.5        # 指数退避基数(秒)
+  # ── P1 预算护栏(v2.1):null=关闭;prompt+completion 累计口径 ──
+  run_token_budget: null           # 例:400000(整场 run 共享池,四个 agent 各 charge 一次)
+  orchestrator_token_budget: null
+  researcher_token_budget: null    # 例:60000
+  verifier_token_budget: null
+  writer_token_budget: null
+  researcher_on_exhaustion: partial  # 预算耗尽降级语义:researcher=partial,其余 agent 固定 escalate
 
 thresholds:
   grounding_min: 0.85              # 上线门槛:Grounding ≥ 85%(M3 用)
@@ -40,3 +48,9 @@ pricing:                           # 成本估算单价(USD/1M tokens);公开标
   glm:                             # GLM-5.2 实标未公开,暂按同族 GLM-4.5(¥2/¥8 per 1M)@7.2 换算
     input_per_1m: 0.28             #   bigmodel.cn/pricing;实标公布后更新
     output_per_1m: 1.12
+
+compaction:                        # ── P2 上下文压缩(v2.1):enabled=false 即全关 ──
+  enabled: false
+  threshold_prompt_tokens: 30000   # DeepSeek 64k 窗口一半作软上限(上轮响应 prompt_tokens 真值)
+  keep_last_n: 4
+  strategy: "stub"                 # 留扩展位;本轮只实现 stub
