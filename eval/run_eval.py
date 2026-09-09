@@ -170,7 +170,10 @@ def _print_telemetry(summary: dict) -> None:
     for name, a in (t.get("agents") or {}).items():
         ms = a.get("mean_steps", 0.0)
         bu = a.get("mean_budget_used", 0.0)
-        print(f"  [{name}] 均值 {ms:.1f} 步  预算占用 {bu:.0%}")
+        dg = a.get("degraded_total", 0)
+        mc = a.get("mean_compactions", 0.0)
+        print(f"  [{name}] 均值 {ms:.1f} 步  预算占用 {bu:.0%}  "
+              f"降级 {dg}  压缩 {mc:.1f}")
 
 
 def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
@@ -192,9 +195,11 @@ def main(argv=None, *, benchmark_dir=None, run_one_fn=None,
     parser.add_argument("--benchmark", default=None, help="题库目录(默认 eval/benchmark)")
     parser.add_argument("--results", default=None,
                         help="结果输出根目录(默认 eval/results);非 multi 系统自动追加子目录")
+    parser.add_argument("--config", default=None,
+                        help="指定 config.yaml 路径(默认仓库根 config.yaml)")
     args = parser.parse_args(argv)
 
-    cfg = cfg or load_config()
+    cfg = cfg or load_config(args.config)
     system = args.system
     bench_dir = args.benchmark or benchmark_dir or (_EVAL_DIR / "benchmark")
     res_dir = Path(args.results or results_dir or (_EVAL_DIR / "results"))

@@ -1,0 +1,57 @@
+# v2.1 护栏全开 eval 配置(对照实验用;与仓库根 config.yaml 仅四处不同)
+# 单一配置源:模型名、工具参数、护栏阈值。运行时由 core/config.py 读取。
+models:
+  generator:                       # 生成模型
+    name: deepseek-chat            # DeepSeek 函数调用模型(spec 记 V4;运行时用其最新 function-calling 模型,可按需替换)
+    base_url: https://api.deepseek.com
+    temperature: 0.3
+    max_tokens: 4096
+  judge:                           # 裁判模型(仅评估环节用,规避自评偏差)
+    name: glm-5.2                  # 智谱最新 GLM-5.2
+    base_url: https://open.bigmodel.cn/api/paas/v4   # 智谱 OpenAI 兼容端点(API 版本路径,与模型版本无关)
+    temperature: 0.0
+    max_tokens: 2048
+    max_concurrency: 10            # GLM-5.2 并发上限(裁判并发,提速 eval)
+
+tools:
+  web_search:                      # 博查 Bocha
+    endpoint: https://api.bochaai.com/v1/web-search
+    count: 8
+  web_read:                        # trafilatura 本地提取
+    max_chars: 8000                # 正文截断,防爆上下文
+  max_tool_result_chars: 6000      # 循环层工具结果截断(null=不截断;与 web_read.max_chars 互为防御纵深)
+
+guards:
+  agent_max_steps: 12              # 单 agent 最大循环步数(防无限循环/成本失控)
+  researcher_max_steps: 6          # 单 researcher 步数(M2 回修:诊断显示理想路径 4-5 步,6 步有余量)
+  research_max_rounds: 3           # Orchestrator 最大研究轮次(M2 用)
+  baseline_max_steps: 16          # 单 agent 基线步数(M3 后续 C:≥ agent_max_steps,故意宽裕抗质疑)
+  request_max_retries: 3           # 瞬时错误重试次数
+  request_backoff_base: 1.5        # 指数退避基数(秒)
+  # ── P1 预算护栏(v2.1):null=关闭;prompt+completion 累计口径 ──
+  run_token_budget: 400000         # 例:400000(整场 run 共享池,四个 agent 各 charge 一次)
+  orchestrator_token_budget: null
+  researcher_token_budget: 60000   # 例:60000
+  verifier_token_budget: null      # 每次调用独立预算(verify/write 可能多次调用,合计可超)
+  writer_token_budget: null        # 同上:每次调用独立预算
+  researcher_on_exhaustion: partial  # 预算耗尽降级语义:researcher=partial,其余 agent 固定 escalate
+
+thresholds:
+  grounding_min: 0.85              # 上线门槛:Grounding ≥ 85%(M3 用)
+
+eval:
+  question_concurrency: 3          # 题间并发(5 题 eval 提速;DeepSeek 限流未知,保守 3,可调)
+
+pricing:                           # 成本估算单价(USD/1M tokens);公开标价·截至 2026-08·近似·可调
+  deepseek:                        # deepseek-chat=V4-Flash;取 cache-miss(保守,不假设命中)
+    input_per_1m: 0.14             #   api-docs.deepseek.com/quick_start/pricing
+    output_per_1m: 0.28
+  glm:                             # GLM-5.2 实标未公开,暂按同族 GLM-4.5(¥2/¥8 per 1M)@7.2 换算
+    input_per_1m: 0.28             #   bigmodel.cn/pricing;实标公布后更新
+    output_per_1m: 1.12
+
+compaction:                        # ── P2 上下文压缩(v2.1):enabled=false 即全关 ──
+  enabled: true
+  threshold_prompt_tokens: 30000   # DeepSeek 64k 窗口一半作软上限(上轮响应 prompt_tokens 真值)
+  keep_last_n: 4
+  strategy: "stub"                 # 留扩展位;本轮只实现 stub
