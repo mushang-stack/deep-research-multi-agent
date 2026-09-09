@@ -2,6 +2,7 @@ import pytest
 
 from core.agent_loop import AgentLoop, AgentResult
 from core.tool_registry import ToolRegistry
+from core.budget import Budget
 from core.robust import Escalation
 from core.telemetry import TelemetrySink
 from llm.base import LLMClient, LLMResponse, ToolCall
@@ -197,3 +198,71 @@ def test_recorder_none_backward_compat():
     c = FakeClient([LLMResponse(content="ok")])
     loop = AgentLoop(client=c, system_prompt="sys")       # 不传 recorder
     assert loop.run("hi").content == "ok"
+
+
+def _tc(id_):
+    return ToolCall(id=id_, name="echo", arguments='{"text":"x"}')
+
+
+def test_budget_escalate_at_next_iteration_top():
+    # limit=150:r1 花 110(<150,继续)→ r2 花后 220(≥150)→ 顶部检查点在 r3 前 → Escalation
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),
+        LLMResponse(content="never reached"),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=10, name="researcher", recorder=sink,
+                     budgets=[Budget(limit=150)])
+    with pytest.raises(Escalation) as ei:
+        loop.run("q")
+    assert len(c.calls) == 2                     # 第 3 次调用被检查点拦下(FakeClient.calls 是 list)
+    assert "exceeded token budget 220/150" in str(ei.value)
+    assert ei.value.context == {"name": "researcher", "reason": "token_budget",
+                                "spent": 220, "limit": 150}
+    assert sink.snapshot()[0]["stop_reason"] == "token_budget"
+    assert sink.snapshot()[0]["degraded"] is False
+    assert sink.snapshot()[0]["hit_max"] is False and sink.snapshot()[0]["steps"] == 2
+
+
+def test_budget_exceeded_but_final_answer_returns_normally():
+    # 预算在最终轮才超:模型已给最终回答 → 正常返回,不降级(活干完了)
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 80, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="done", usage={"prompt_tokens": 80, "completion_tokens": 10}),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     budgets=[Budget(limit=100)])
+    out = loop.run("q")
+    assert out.content == "done" and out.degraded is False   # spent 180 ≥ 100 但已收敛
+
+
+def test_dual_budget_charges_both_and_either_triggers():
+    # 自身预算 5000(不超)+ run 池 150(超)→ 对两者各 charge 一次,池超即触发
+    own, pool = Budget(limit=5000), Budget(limit=150)
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     budgets=[own, pool])
+    with pytest.raises(Escalation) as ei:
+        loop.run("q")
+    assert own.spent == 220 and pool.spent == 220     # 同一次调用对两者各 charge
+    assert ei.value.context["limit"] == 150           # 上报的是超限的那只(run 池)
+
+
+def test_no_budgets_default_off_behavior_unchanged():
+    # 缺省不传 budgets → 全程无预算路径(回归保证)
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo())
+    assert loop.run("q").content == "done"
