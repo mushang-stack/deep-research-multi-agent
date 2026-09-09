@@ -50,6 +50,8 @@ class AgentLoop:
         self.max_steps = max_steps
         self.name = name
         self.recorder = recorder
+        if on_exhaustion not in ("escalate", "partial"):
+            raise ValueError(f"on_exhaustion 非法:{on_exhaustion!r}(允许 escalate|partial)")
         self.budgets = list(budgets) if budgets else None
         self.on_exhaustion = on_exhaustion
         self.max_tool_result_chars = max_tool_result_chars
@@ -75,12 +77,14 @@ class AgentLoop:
             # 模型已给最终回答的轮次在循环体内直接 return,到不了这里 → 活干完不降级
             if self.budgets and any(b.exceeded for b in self.budgets):
                 b = next(b for b in self.budgets if b.exceeded)
+                if self.on_exhaustion == "partial" and steps > 0:
+                    # steps==0 = 本 agent 尚无任何产出(仅共享池先耗尽场景),无工作可救 → escalate;
+                    # partial 路径的 telemetry 由 _forced_wrapup 记一条(degraded=True),此处不双记
+                    return self._forced_wrapup(messages, steps, total_prompt,
+                                               total_completion, start, compactions)
                 wall = time.perf_counter() - start
                 self._record(steps, total_prompt, total_completion, wall, hit_max=False,
                              stop_reason="token_budget", compactions=compactions)
-                if self.on_exhaustion == "partial":          # Task 4 实现
-                    return self._forced_wrapup(messages, steps, total_prompt,
-                                               total_completion, start, compactions)
                 raise Escalation(
                     f"{self.name} exceeded token budget {b.spent}/{b.limit}",
                     context={"name": self.name, "reason": "token_budget",
@@ -144,6 +148,33 @@ class AgentLoop:
             f"{self.name} hit max_steps={self.max_steps}",
             context={"name": self.name, "steps": self.max_steps},
         )
+
+    # partial 降级:一次强制收尾调用。上界 = 一次调用 + max_tokens;照常 charge(诚实计数)。
+    def _forced_wrapup(self, messages, steps, total_prompt, total_completion,
+                       start, compactions) -> AgentResult:
+        messages.append({"role": "user", "content":
+            "TOKEN_BUDGET_EXHAUSTED: 不再调用任何工具,基于已获取的信息立即输出最终结果。"})
+        steps += 1  # 收尾调用顶替本轮迭代(≤ max_steps 恒成立)
+        resp = self.client.chat(
+            messages=messages, tools=None,     # 不给工具面,机械上杜绝收尾调工具
+            model=self.model, temperature=self.temperature, max_tokens=self.max_tokens,
+        )
+        u = resp.usage or {}
+        pt = u.get("prompt_tokens", 0) or 0
+        ct = u.get("completion_tokens", 0) or 0
+        total_prompt += pt
+        total_completion += ct
+        if self.budgets:
+            for b in self.budgets:
+                b.charge(pt, ct)
+        # 收尾输出若带 tool_call 一律忽略只取 content;被忽略的 tool_call 无需回填
+        messages.append({"role": "assistant", "content": resp.content})
+        wall = time.perf_counter() - start
+        self._record(steps, total_prompt, total_completion, wall, hit_max=False,
+                     degraded=True, stop_reason="token_budget", compactions=compactions)
+        return AgentResult(content=resp.content, history=messages, degraded=True,
+                           usage={"prompt_tokens": total_prompt,
+                                  "completion_tokens": total_completion})
 
     def _record(self, steps, prompt, completion, wall_s, *, hit_max,
                 degraded=False, stop_reason="", compactions=0):

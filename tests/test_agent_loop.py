@@ -266,3 +266,75 @@ def test_no_budgets_default_off_behavior_unchanged():
     ])
     loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo())
     assert loop.run("q").content == "done"
+
+
+def test_budget_partial_forced_wrapup():
+    # r1 花 200 超 limit=150 → 顶部检查点走 partial:追加收尾 user 消息,恰好一次收尾调用
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 150, "completion_tokens": 50},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content='{"findings":[{"claim":"部分结论"}]}',
+                    usage={"prompt_tokens": 300, "completion_tokens": 40}),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=10, name="researcher", recorder=sink,
+                     budgets=[Budget(limit=150)], on_exhaustion="partial")
+    out = loop.run("q")
+    assert out.degraded is True
+    assert out.content.startswith('{"findings"')          # 救回部分产出
+    assert len(c.calls) == 2                              # 恰好一次收尾调用
+    assert c.calls[1]["tools"] is None                    # 收尾不给工具面(机械保证)
+    # 收尾 user 消息追加在 tool 消息之后(契约:tool_call 后必须先回填 tool 消息)
+    roles = [(m["role"], m.get("tool_call_id")) for m in out.history]
+    assert roles == [("system", None), ("user", None), ("assistant", None),
+                     ("tool", "c1"), ("user", None), ("assistant", None)]
+    assert out.history[4]["content"].startswith("TOKEN_BUDGET_EXHAUSTED")
+    # 收尾调用照常 charge(诚实计数):150+50 + 300+40 = 540
+    assert loop.budgets[0].spent == 540
+    assert out.usage == {"prompt_tokens": 450, "completion_tokens": 90}
+    assert len(sink.snapshot()) == 1                      # 单条 telemetry 记录(partial 不双记)
+    snap = sink.snapshot()[0]
+    assert snap["degraded"] is True and snap["stop_reason"] == "token_budget"
+    assert snap["steps"] == 2 and snap["hit_max"] is False
+
+
+def test_partial_wrapup_tool_call_ignored():
+    # 收尾输出仍带 tool_call → 一律忽略只取 content,不再有后续调用
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="收尾文本", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),      # 收尾响应违规带 tool_call
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     budgets=[Budget(limit=100)], on_exhaustion="partial")
+    out = loop.run("q")
+    assert out.content == "收尾文本" and out.degraded is True
+    assert len(c.calls) == 2                              # 忽略 tool_call,无第三次调用
+    assert out.history[-1] == {"role": "assistant", "content": "收尾文本"}   # 未回填 tool
+
+
+def test_invalid_on_exhaustion_rejected_at_loop_level():
+    # on_exhaustion 非法值在构造时即拒(纵深防御:config 层 Task 8 还会再验一次)
+    with pytest.raises(ValueError, match="on_exhaustion"):
+        AgentLoop(client=FakeClient([]), system_prompt="sys",
+                  on_exhaustion="partail")
+
+
+def test_partial_steps0_shared_pool_exhausted_escalates():
+    # 共享池先被别的 researcher 耗尽 → 本 agent steps==0 无工作可救 → escalate(而非空手收尾)
+    pool = Budget(limit=10)
+    pool.charge(10, 0)                                  # 池已被耗尽
+    c = FakeClient([])                                  # 不应发生任何模型调用
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     name="researcher", recorder=sink,
+                     budgets=[pool], on_exhaustion="partial")
+    with pytest.raises(Escalation) as ei:
+        loop.run("q")
+    assert len(c.calls) == 0
+    assert ei.value.context["reason"] == "token_budget"
+    snap = sink.snapshot()[0]
+    assert snap["steps"] == 0 and snap["degraded"] is False
+    assert snap["stop_reason"] == "token_budget"
