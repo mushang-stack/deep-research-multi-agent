@@ -338,3 +338,44 @@ def test_partial_steps0_shared_pool_exhausted_escalates():
     snap = sink.snapshot()[0]
     assert snap["steps"] == 0 and snap["degraded"] is False
     assert snap["stop_reason"] == "token_budget"
+
+
+def test_tool_result_truncated_with_marker():
+    reg = ToolRegistry()
+    reg.register("big", lambda: "L" * 100, description="d", parameters={"type": "object"})
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[ToolCall(id="c1", name="big", arguments="{}")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=reg,
+                     max_tool_result_chars=10)
+    out = loop.run("q")
+    tool_msg = next(m for m in out.history if m["role"] == "tool")
+    assert tool_msg["content"] == "L" * 10 + "…[truncated 10/100 chars]"
+
+
+def test_tool_result_exactly_at_limit_not_truncated():
+    reg = ToolRegistry()
+    reg.register("big", lambda: "L" * 10, description="d", parameters={"type": "object"})
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[ToolCall(id="c1", name="big", arguments="{}")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=reg,
+                     max_tool_result_chars=10)
+    out = loop.run("q")
+    tool_msg = next(m for m in out.history if m["role"] == "tool")
+    assert tool_msg["content"] == "L" * 10          # 恰好等于阈值不截
+
+
+def test_truncation_off_by_default():
+    reg = ToolRegistry()
+    reg.register("big", lambda: "L" * 100, description="d", parameters={"type": "object"})
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[ToolCall(id="c1", name="big", arguments="{}")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=reg)   # 不传 → 不截断
+    out = loop.run("q")
+    tool_msg = next(m for m in out.history if m["role"] == "tool")
+    assert tool_msg["content"] == "L" * 100
