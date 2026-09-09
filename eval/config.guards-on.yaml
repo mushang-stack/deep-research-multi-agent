@@ -29,7 +29,7 @@ guards:
   request_max_retries: 3           # 瞬时错误重试次数
   request_backoff_base: 1.5        # 指数退避基数(秒)
   # ── P1 预算护栏(v2.1):null=关闭;prompt+completion 累计口径 ──
-  run_token_budget: 400000         # 例:400000(整场 run 共享池,四个 agent 各 charge 一次)
+  run_token_budget: 700000         # 校准值:首轮 400k 误杀 q002/q004(off 侧单题自然分布 151k-447k,方差 ±2×),取观测最大值 +57% 余量
   orchestrator_token_budget: null
   researcher_token_budget: 60000   # 例:60000
   verifier_token_budget: null      # 每次调用独立预算(verify/write 可能多次调用,合计可超)
