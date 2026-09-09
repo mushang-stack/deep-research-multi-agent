@@ -1,6 +1,6 @@
 import pytest
 
-from core.agent_loop import AgentLoop, AgentResult
+from core.agent_loop import AgentLoop, AgentResult, CompactionConfig, compact_messages
 from core.tool_registry import ToolRegistry
 from core.budget import Budget
 from core.robust import Escalation
@@ -379,3 +379,112 @@ def test_truncation_off_by_default():
     out = loop.run("q")
     tool_msg = next(m for m in out.history if m["role"] == "tool")
     assert tool_msg["content"] == "L" * 100
+
+
+def test_compaction_stubs_middle_tool_message():
+    # r1 pt=50(<100 不触发)→ r2 pt=250(>100)→ 顶部检查点压缩:t1(中间)存根化,t2(末尾)原样
+    on_compact_calls = []
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 50, "completion_tokens": 5},
+                    tool_calls=[ToolCall(id="c1", name="echo",
+                                         arguments='{"text":"' + "L" * 100 + '"}')]),
+        LLMResponse(content="", usage={"prompt_tokens": 250, "completion_tokens": 5},
+                    tool_calls=[ToolCall(id="c2", name="echo",
+                                         arguments='{"text":"' + "R" * 100 + '"}')]),
+        LLMResponse(content="done", usage={"prompt_tokens": 100, "completion_tokens": 5}),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     recorder=sink, name="researcher",
+                     compaction=CompactionConfig(enabled=True,
+                                                 threshold_prompt_tokens=100,
+                                                 keep_last_n=2),
+                     on_compact=on_compact_calls.append)
+    out = loop.run("q")
+    t1 = next(m for m in out.history if m.get("tool_call_id") == "c1")
+    t2 = next(m for m in out.history if m.get("tool_call_id") == "c2")
+    assert t1["content"].startswith("[stub: echo result, ") and t1["content"].endswith(" chars]")
+    assert t2["content"].startswith('{"echo": "RRR')      # keep_last_n 内原样
+    assert len(on_compact_calls) == 1
+    info = on_compact_calls[0]
+    assert info["agent"] == "researcher" and info["threshold"] == 100
+    assert info["stubbed_tool_msgs"] == 1 and info["kept_last"] == 2
+    assert info["last_prompt_tokens"] == 250
+    assert sink.snapshot()[0]["compactions"] == 1
+
+
+def test_compaction_protects_prefix_pairs_and_truncates_assistant():
+    # 前缀(system+user)逐字节不动;assistant 长内容截 200;tool_call_id 配对完整
+    on_compact_calls = []
+    c = FakeClient([
+        LLMResponse(content="分" * 250, usage={"prompt_tokens": 50, "completion_tokens": 5},
+                    tool_calls=[ToolCall(id="c1", name="echo",
+                                         arguments='{"text":"' + "L" * 100 + '"}')]),
+        LLMResponse(content="", usage={"prompt_tokens": 250, "completion_tokens": 5},
+                    tool_calls=[ToolCall(id="c2", name="echo",
+                                         arguments='{"text":"' + "R" * 100 + '"}')]),
+        LLMResponse(content="done", usage={"prompt_tokens": 100, "completion_tokens": 5}),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     compaction=CompactionConfig(enabled=True,
+                                                 threshold_prompt_tokens=100,
+                                                 keep_last_n=2),
+                     on_compact=on_compact_calls.append)
+    out = loop.run("q")
+    hist = out.history
+    assert hist[0] == {"role": "system", "content": "sys"}       # 前缀未动
+    assert hist[1] == {"role": "user", "content": "q"}
+    a1 = hist[2]
+    assert a1["content"] == "分" * 200                            # assistant 截 200,tool_calls 保留
+    assert a1["tool_calls"][0]["id"] == "c1"
+    t1 = hist[3]
+    assert t1["content"].startswith("[stub: echo result, ")
+    # 配对契约:每个 assistant.tool_calls[].id 都有对应 tool 消息(只改内容不删消息)
+    tool_ids = {m["tool_call_id"] for m in hist if m["role"] == "tool"}
+    asst_ids = {tc["id"] for m in hist if m["role"] == "assistant"
+                for tc in m.get("tool_calls") or []}
+    assert asst_ids <= tool_ids
+    assert on_compact_calls[0]["stubbed_tool_msgs"] == 1         # 只数 tool 存根
+
+
+def test_compaction_below_threshold_never_triggers():
+    on_compact_calls = []
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 50, "completion_tokens": 5},
+                    tool_calls=[ToolCall(id="c1", name="echo",
+                                         arguments='{"text":"' + "L" * 100 + '"}')]),
+        LLMResponse(content="done", usage={"prompt_tokens": 60, "completion_tokens": 5}),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     compaction=CompactionConfig(enabled=True,
+                                                 threshold_prompt_tokens=100,
+                                                 keep_last_n=2),
+                     on_compact=on_compact_calls.append)
+    out = loop.run("q")
+    assert on_compact_calls == []                                 # 全程低于阈值
+    t1 = next(m for m in out.history if m.get("tool_call_id") == "c1")
+    assert t1["content"].startswith('{"echo": "LLL')              # 原样
+
+
+def test_compact_messages_idempotent_and_never_deletes():
+    msgs = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": "分" * 250,
+         "tool_calls": [{"id": "c1", "type": "function",
+                         "function": {"name": "echo", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "c1", "content": "L" * 500},
+        {"role": "assistant", "content": "done"},
+    ]
+    n_before = len(msgs)
+    n_tool, n_asst = compact_messages(msgs, protected=2, keep_last_n=1)
+    assert (n_tool, n_asst) == (1, 1) and len(msgs) == n_before   # 只改内容不删消息
+    n_tool2, n_asst2 = compact_messages(msgs, protected=2, keep_last_n=1)
+    assert (n_tool2, n_asst2) == (0, 0)                           # 幂等:二次无收益
+
+
+def test_compaction_config_validates_footguns():
+    with pytest.raises(ValueError, match="keep_last_n"):
+        CompactionConfig(enabled=True, threshold_prompt_tokens=100, keep_last_n=1)
+    with pytest.raises(ValueError, match="threshold_prompt_tokens"):
+        CompactionConfig(enabled=True, threshold_prompt_tokens=0)

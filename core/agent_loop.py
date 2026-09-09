@@ -22,6 +22,48 @@ def _to_text(result: Any) -> str:
 
 
 @dataclass
+class CompactionConfig:
+    """P2 上下文压缩配置(config compaction 段 1:1 映射)。本轮只实现 stub 策略。"""
+    enabled: bool = False
+    threshold_prompt_tokens: int = 30000   # DeepSeek 64k 窗口一半作软上限
+    keep_last_n: int = 4
+    strategy: str = "stub"                 # 枚举留扩展位(LLM 摘要是未来选项)
+
+    def __post_init__(self):
+        if self.keep_last_n < 2:
+            raise ValueError(f"keep_last_n 必须 ≥ 2(保护至少一轮完整 tool 结果):{self.keep_last_n}")
+        if self.threshold_prompt_tokens < 1:
+            raise ValueError(f"threshold_prompt_tokens 必须 ≥ 1:{self.threshold_prompt_tokens}")
+
+
+def compact_messages(messages: list, *, protected: int, keep_last_n: int) -> tuple[int, int]:
+    """启发式 stub 压缩(确定性、零额外 token)。
+    protected:受保护前缀长度(system + context_messages + 首个 user),逐字节不动。
+    keep_last_n:尾部原样保留条数。中间旧 tool 消息 → '[stub: {tool_name} result, {N} chars]';
+    中间旧 assistant content 截 200 字(tool_calls 保留)。只改内容、永不删消息——
+    删 tool 消息会破坏 tool_call_id 配对契约(API 直接报错)。
+    返回 (存根化 tool 条数, 截断 assistant 条数);已是 stub 的跳过(幂等)。"""
+    names = {}
+    for m in messages:
+        for tc in m.get("tool_calls") or []:
+            names[tc["id"]] = tc["function"]["name"]
+    middle_end = max(protected, len(messages) - keep_last_n)   # 保护前缀与尾部区不重叠
+    n_tool = n_asst = 0
+    for m in messages[protected:middle_end]:
+        content = m.get("content")
+        if m["role"] == "tool":
+            if isinstance(content, str) and content.startswith("[stub: "):
+                continue                                          # 已存根,幂等跳过
+            m["content"] = f"[stub: {names.get(m.get('tool_call_id'), 'tool')} result, {len(content or '')} chars]"
+            n_tool += 1
+        elif m["role"] == "assistant":
+            if isinstance(content, str) and len(content) > 200:
+                m["content"] = content[:200]
+                n_asst += 1
+    return n_tool, n_asst
+
+
+@dataclass
 class AgentResult:
     content: str
     history: list = field(default_factory=list)  # 完整消息历史(调试/审计/M2 上下文隔离参考)
@@ -39,7 +81,7 @@ class AgentLoop:
                  budgets: Optional[Sequence] = None,      # list[Budget] | None;任一超限触发 on_exhaustion
                  on_exhaustion: str = "escalate",         # "escalate" | "partial"
                  max_tool_result_chars: Optional[int] = None,   # 循环层工具结果截断;None=不截断
-                 compaction: Optional["CompactionConfig"] = None,  # P2,Task 6 实现(字符串前向引用,现在不存在也不报错)
+                 compaction: Optional["CompactionConfig"] = None,  # P2 上下文压缩(默认关闭)
                  on_compact: Optional[Callable[[dict], None]] = None):
         self.client = client
         self.system_prompt = system_prompt
@@ -90,6 +132,23 @@ class AgentLoop:
                     context={"name": self.name, "reason": "token_budget",
                              "spent": b.spent, "limit": b.limit},
                 )
+
+            # ── P2 压缩:预算已裁决命运(escalate/partial 在上方处理),继续跑才压缩 ──
+            if (self.compaction and self.compaction.enabled
+                    and last_prompt_tokens > self.compaction.threshold_prompt_tokens):
+                n_tool, n_asst = compact_messages(
+                    messages, protected=2 + len(context_messages or []),
+                    keep_last_n=self.compaction.keep_last_n)
+                if n_tool + n_asst > 0:        # 每轮至多一次;幂等无收益不计数
+                    compactions += 1
+                    if self.on_compact:
+                        self.on_compact({
+                            "agent": self.name,
+                            "threshold": self.compaction.threshold_prompt_tokens,
+                            "last_prompt_tokens": last_prompt_tokens,
+                            "stubbed_tool_msgs": n_tool,
+                            "kept_last": self.compaction.keep_last_n,
+                        })
 
             steps += 1
             resp = self.client.chat(
