@@ -31,8 +31,8 @@ guards:
   run_token_budget: null           # 例:400000(整场 run 共享池,四个 agent 各 charge 一次)
   orchestrator_token_budget: null
   researcher_token_budget: null    # 例:60000
-  verifier_token_budget: null
-  writer_token_budget: null
+  verifier_token_budget: null      # 每次调用独立预算(verify/write 可能多次调用,合计可超)
+  writer_token_budget: null        # 同上:每次调用独立预算
   researcher_on_exhaustion: partial  # 预算耗尽降级语义:researcher=partial,其余 agent 固定 escalate
 
 thresholds:

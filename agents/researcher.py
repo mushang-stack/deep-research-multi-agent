@@ -5,9 +5,11 @@ from .prompts import RESEARCHER_PROMPT
 
 
 def make_researcher(*, client, search_client, max_chars: int = 8000,
-                    max_steps: int = 12, recorder=None) -> AgentLoop:
+                    max_steps: int = 12, recorder=None,
+                    loop_kwargs: dict | None = None) -> AgentLoop:
     return AgentLoop(
         client=client, system_prompt=RESEARCHER_PROMPT,
         registry=build_web_registry(search_client, max_chars=max_chars),
         max_steps=max_steps, name="researcher", recorder=recorder,
+        **(loop_kwargs or {}),
     )

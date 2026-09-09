@@ -9,7 +9,7 @@ _ICONS = {
     "run_start": "▶", "research_round": "🧩", "research_start": "🔍",
     "research_done": "·", "research_round_done": "✓", "verify_start": "🔎",
     "verify_done": "✓", "write_start": "✍", "report_ready": "📄",
-    "warn": "⚠", "run_done": "✓", "error": "✗",
+    "warn": "⚠", "run_done": "✓", "error": "✗", "compact": "🗜",
 }
 
 
