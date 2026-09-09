@@ -48,7 +48,7 @@ Orchestrator(动态决策:走哪步、循环几次、何时收尾)
 
 ## Loop 内功:预算护栏与上下文压缩
 
-循环层的两道护栏,全部挂 `config.yaml` 开关、默认关闭(关闭时行为与不加完全一致,回归由 278 个测试守门):
+循环层的两道护栏,全部挂 `config.yaml` 开关、默认关闭(关闭时循环行为与不加完全一致,遥测输出按设计新增 degraded/压缩等增量字段;回归由 278 个测试守门):
 
 - **Token 预算护栏(P1)**——步数护栏之外补上成本维度。`run_token_budget` 整场共享池 + 各 agent 独立预算(每次调用新建),同一调用对两者各计费一次;耗尽时默认 `escalate` 上抛,researcher 单独配 `partial`:追加一条"禁止再调工具"的收尾指令、做恰好一次强制收尾调用,把已花掉的检索工作救回部分 findings(其输出仍经 `parse_findings` 逐项容错,坏项跳过、救回的 findings 正常合流)。
 - **上下文压缩(P2)**——上轮响应的 `usage.prompt_tokens`(免费的上下文真值,免 tokenizer)超过 `threshold_prompt_tokens` 时,把中间旧 tool 消息替换为 `[stub: ...]` 存根、旧 assistant 内容截断,保护 system/首条 user 前缀与最近 `keep_last_n` 条。只改内容、永不删消息——删 tool 消息会破坏 `tool_call_id` 配对契约,是压缩实现最易踩的坑。
