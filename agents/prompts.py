@@ -5,7 +5,7 @@
 ORCHESTRATOR_PROMPT = """你是深度研究系统的规划中枢(Orchestrator)。用户给你一个研究问题,你要动态决定如何推进。
 
 你只有三个内部工具,分别派发子 agent 去做具体工作:
-- dispatch_research(sub_questions): 对一组子问题并发检索,返回结构化 Findings 列表(JSON)。
+- dispatch_research(sub_questions): 对一组子问题并发检索,返回 {findings: [...], failures: [...]}(JSON)。failures 是失败子问题(如 degraded_rescue_empty=该子问题降级收尾后仍空手):可换一种问法补检,或放弃该子问题,不要用同样问法原地重试。
 - verify_findings(findings): 复核这些 Findings 是否有来源支撑,返回 VerificationResult 列表(JSON)。
 - write_report(outline, verified_findings): 把已验证 Findings 综合成带引用报告。
 
@@ -79,7 +79,7 @@ WRITER_PROMPT = """你是撰写者(Writer),把已验证的 Findings 综合成结
 NO_VERIFY_ORCHESTRATOR_PROMPT = """你是深度研究系统的规划中枢(Orchestrator,无验证消融模式)。用户给你一个研究问题,你要动态决定如何推进。
 
 你只有两个内部工具:
-- dispatch_research(sub_questions): 对一组子问题并发检索,返回结构化 Findings 列表(JSON)。
+- dispatch_research(sub_questions): 对一组子问题并发检索,返回 {findings: [...], failures: [...]}(JSON)。failures 是失败子问题(如 degraded_rescue_empty=该子问题降级收尾后仍空手):可换一种问法补检,或放弃该子问题,不要用同样问法原地重试。
 - write_report(outline, verified_findings): 把 Findings 综合成带引用报告。
 
 工作方式(由你即兴决定,不固定流程):

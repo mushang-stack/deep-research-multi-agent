@@ -167,3 +167,21 @@ M4 之后的循环层专项:步数护栏之外补上 token/成本维度、上下
 - **partial 强制收尾(D1 细则)**:researcher 预算耗尽时不直接丢工作,而是追加一条"禁止再调工具"的收尾指令、做恰好一次模型调用(输出若带 tool_call 一律忽略),`degraded=True` 返回,输出仍经 `parse_findings` 逐项容错。因为超限时刻模型处于 tool_call 中间态,直接返回最后内容常不可解析,等于白降级。验证 = 单测钉死恰好一次/契约安全/诚实计数;steps==0(共享池先耗尽、零工作可救)时强制走 escalate——那是质量审抓出的"收尾比丢弃更糟"边界。
 - **上下文压缩(P2)**:上轮响应的 `usage.prompt_tokens`(免费真值,免 tokenizer)超阈值时,把中间旧 tool 消息替换为 `[stub: ...]` 存根、旧 assistant 内容截 200 字,保护 system/首条 user 前缀与最近 `keep_last_n` 条。**只改内容、永不删消息**——删 tool 消息会破坏 `tool_call_id` 配对契约,是压缩实现最易踩的坑。验证 = 单测覆盖幂等/前缀逐字节保护/配对完整;经 `on_compact` 回调发 `compact` 事件,UI 无需改动即可收到通知(另为该事件补了 🗜 图标)。
 - **双层截断**:工具层 `web_read.max_chars=8000`(正文提取时)+ 循环层 `max_tool_result_chars`(任何工具回填时),互为防御纵深;orchestrator 豁免两层——其工具结果是结构化 JSON(dispatch 合并 findings / verify 判定),截断/存根化会破坏数据完整性并污染 eval trace(这是质量审驱动的设计修订)。验证 = 边界单测 + eval trace 完整性对照。
+
+### 附录补记:researcher 收敛稳定性修复(2026-09-09,同日续)
+
+v2.1 三轮 eval 暴露的真瓶颈:researcher 随机不收敛(同配置两轮 0 findings vs 35 findings),根因是**零松弛算术**——收敛规则(搜≤2+读≤3)加输出步恰好铺满 `researcher_max_steps=6`,任何一次浪费(空页/补搜)都让交卷挤不进日程,且步数护栏耗尽即 Escalation 全部丢弃。
+
+**修复(双保险,默认开)**:F1 最后一步预告(`last_step_nudge`,进入最后一轮且未收敛时注入交卷指令,零额外调用)+ F2 步数耗尽走强制收尾(v2.1 的 partial 原语外溢到步数护栏,`MAX_STEPS_REACHED` 话术)。配套:降级空手的 researcher 由 dispatch 显式记 `degraded_rescue_empty` 失败条目(不留隐形缺口)。
+
+**三臂定向复现实验**(60 次单 researcher 真跑,`eval/results/convergence-probe.md`,原始逐次数据 `.runs.jsonl`):
+
+| 臂 | n | 0-findings 率 | findings 均值 | escalated |
+|---|---|---|---|---|
+| A 基线 | 20 | 10%(2/20) | 8.2 | 2 |
+| B 纯截断 6000 | 20 | 15%(3/20) | 8.0 | 3 |
+| C 修复后 | 20 | **0%(0/20)** | 8.9 | 0 |
+
+- 修复生效:C 臂零发散且 findings 均值最高;天然发散率被量化为 10%(解释了完整 eval 的偶发 no_report)。
+- **修复后完整 eval(默认开)**:5/5 成功、grounding 0.939、**0/31 个 researcher 撞顶**(修复前 mean_steps 5.52/6 贴顶)、单题 191s/$0.034(修复前 325s/$0.048)——更快更省更稳。
+- **诚实注记**:① 截断放大效应方向为正(+5pp)但 1 个事件之差属噪声级,未证实;② F2 兜底在实验与 eval 中零触发——F1 预告在边界轨迹上直接推动收敛,兜底未出场(其有效性由单测背书,含 F1/F2 联合路径测试);③ nudge 注入无计数器,"预告推动收敛"与"自然恰好末步收敛"无法从遥测区分;④ `degraded_rescue_empty` 覆盖"空 findings"与"输出不可解析"两种尾部(处置相同);⑤ 救援路径 steps=max_steps+1 属诚实计数,utilization 的 budget_used 可 >100%;⑥ baseline 臂刻意不带修复——预告"不要再调用任何工具"对 baseline 有害(其收尾动作恰是 write_report 工具调用)。
