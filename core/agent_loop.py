@@ -199,6 +199,22 @@ class AgentLoop:
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": content})
 
+        # fast-follow 加固:预算恰在最后一个允许迭代内超限 → 循环自然退出,此处补裁决
+        # (预算是比 max_steps 更具体的停止原因;partial 在此仍可救回工作)
+        if self.budgets and any(b.exceeded for b in self.budgets):
+            b = next(b for b in self.budgets if b.exceeded)
+            wall = time.perf_counter() - start
+            if self.on_exhaustion == "partial" and steps > 0:
+                return self._forced_wrapup(messages, steps, total_prompt,
+                                           total_completion, start, compactions)
+            self._record(steps, total_prompt, total_completion, wall, hit_max=False,
+                         stop_reason="token_budget", compactions=compactions)
+            raise Escalation(
+                f"{self.name} exceeded token budget {b.spent}/{b.limit}",
+                context={"name": self.name, "reason": "token_budget",
+                         "spent": b.spent, "limit": b.limit},
+            )
+
         # 用尽 max_steps 仍未收敛 → 上报后显式 escalation(sink 先记,不丢)
         wall = time.perf_counter() - start
         self._record(steps, total_prompt, total_completion, wall, hit_max=True,

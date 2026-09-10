@@ -488,3 +488,50 @@ def test_compaction_config_validates_footguns():
         CompactionConfig(enabled=True, threshold_prompt_tokens=100, keep_last_n=1)
     with pytest.raises(ValueError, match="threshold_prompt_tokens"):
         CompactionConfig(enabled=True, threshold_prompt_tokens=0)
+
+
+def test_budget_crossed_on_final_iteration_escalates_as_token_budget():
+    # 预算恰在最后允许迭代超限:循环退出后由 post-loop 检查裁决 → token_budget(非 max_steps)
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=2, name="researcher", recorder=sink,
+                     budgets=[Budget(limit=150)])
+    with pytest.raises(Escalation) as ei:
+        loop.run("q")
+    assert ei.value.context["reason"] == "token_budget"       # 不是 max_steps
+    assert "exceeded token budget 220/150" in str(ei.value)
+    snap = sink.snapshot()[0]
+    assert snap["stop_reason"] == "token_budget" and snap["hit_max"] is False
+
+
+def test_budget_crossed_on_final_iteration_partial_salvages():
+    # 同场景 + partial → 强制收尾救回,而非 max_steps escalation 丢工作
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),
+        LLMResponse(content='{"findings":[{"claim":"救回"}]}',
+                    usage={"prompt_tokens": 200, "completion_tokens": 20}),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=2, budgets=[Budget(limit=150)], on_exhaustion="partial")
+    out = loop.run("q")
+    assert out.degraded is True and out.content.startswith('{"findings"')
+    assert len(c.calls) == 3                                  # 2 轮 + 1 次收尾
+
+
+def test_max_steps_without_budget_unchanged():
+    # 无预算时 max_steps 路径原样(回归)
+    looping = LLMResponse(content="", tool_calls=[_tc("c1")])
+    c = FakeClient([looping] * 100)
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=3)
+    with pytest.raises(Escalation, match="hit max_steps"):
+        loop.run("q")
