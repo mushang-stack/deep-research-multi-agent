@@ -579,3 +579,60 @@ def test_max_steps_escalate_agent_unchanged():
     snap = sink.snapshot()[0]
     assert snap["hit_max"] is True and snap["stop_reason"] == "max_steps"
     assert snap["degraded"] is False and snap["steps"] == 3
+
+
+def test_last_step_nudge_injected_on_final_iteration():
+    # max_steps=3:前两轮 tool_call,进入第 3 轮(最后一轮)前注入预告;第 3 轮收敛
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+        LLMResponse(content="", tool_calls=[_tc("c2")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=3, last_step_nudge="LAST_STEP: 立即输出 Findings JSON。")
+    out = loop.run("q")
+    assert len(c.calls) == 3                          # 零额外调用
+    roles = [m["role"] for m in out.history]
+    assert roles == ["system", "user", "assistant", "tool",
+                     "assistant", "tool", "user", "assistant"]
+    assert out.history[6]["content"] == "LAST_STEP: 立即输出 Findings JSON。"
+    assert out.degraded is False and out.content == "done"
+
+
+def test_last_step_nudge_not_injected_when_converges_early():
+    # 第 2 轮(max_steps-1 之前)已收敛 → 无预告
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=5, last_step_nudge="LAST_STEP: 立即输出。")
+    out = loop.run("q")
+    assert not any(m["role"] == "user" and m["content"].startswith("LAST_STEP")
+                   for m in out.history)
+
+
+def test_last_step_nudge_skipped_on_first_iteration():
+    # max_steps=1:首轮无"上一轮" → 不注入(第 1 次调用只见 [system, user])
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=1, last_step_nudge="LAST_STEP: 立即输出。")
+    with pytest.raises(Escalation, match="hit max_steps"):
+        loop.run("q")
+    assert c.calls[0]["n_messages"] == 2              # 无预告消息
+
+
+def test_last_step_nudge_none_by_default():
+    # 缺省 None → 全程无预告(其他 agent 零扰动)
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+        LLMResponse(content="", tool_calls=[_tc("c2")]),
+        LLMResponse(content="done"),
+    ])
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=3)
+    out = loop.run("q")
+    assert not any(m["role"] == "user" and m["content"].startswith("LAST_STEP")
+                   for m in out.history)

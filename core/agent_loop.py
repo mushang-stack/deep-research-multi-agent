@@ -88,7 +88,8 @@ class AgentLoop:
                  on_exhaustion: str = "escalate",         # "escalate" | "partial"
                  max_tool_result_chars: Optional[int] = None,   # 循环层工具结果截断;None=不截断
                  compaction: Optional["CompactionConfig"] = None,  # P2 上下文压缩(默认关闭)
-                 on_compact: Optional[Callable[[dict], None]] = None):
+                 on_compact: Optional[Callable[[dict], None]] = None,
+                 last_step_nudge: Optional[str] = None):  # F1:最后一轮未收敛时注入的交卷指令;None=关
         self.client = client
         self.system_prompt = system_prompt
         self.registry = registry
@@ -105,6 +106,7 @@ class AgentLoop:
         self.max_tool_result_chars = max_tool_result_chars
         self.compaction = compaction
         self.on_compact = on_compact
+        self.last_step_nudge = last_step_nudge
 
     def run(self, user_message: str, context_messages: Optional[list] = None) -> AgentResult:
         messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
@@ -155,6 +157,12 @@ class AgentLoop:
                             "stubbed_tool_msgs": n_tool,
                             "kept_last": self.compaction.keep_last_n,
                         })
+
+            # F1 最后一步预告:只剩最后一轮且上轮以工具调用结束(未收敛)→ 明示立即交卷。
+            # 零额外调用;steps>0 排除首轮(无上一轮可判);消息在 tool 回填之后(契约安全)。
+            if (self.last_step_nudge and steps == self.max_steps - 1
+                    and steps > 0 and messages[-1]["role"] == "tool"):
+                messages.append({"role": "user", "content": self.last_step_nudge})
 
             steps += 1
             resp = self.client.chat(
