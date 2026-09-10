@@ -62,7 +62,11 @@ def dispatch_research(sub_questions: list[str], run_one, *, max_workers: int | N
             sq = future_map[fut]
             try:
                 result = fut.result()
-                findings.extend(parse_findings(result.content))
+                found = parse_findings(result.content)
+                if not found and getattr(result, "degraded", False):
+                    # F2 收敛修复配套:降级收尾仍 0 findings → 显式记失败(不留隐形缺口)
+                    failures.append({"sub_question": sq, "error": "degraded_rescue_empty"})
+                findings.extend(found)
             except Exception as e:  # 单点失败:容错,不阻塞整体
                 failures.append({"sub_question": sq, "error": repr(e)})
     # 多 researcher 可能都用 "f1" → 统一重编号,避免 id 冲突

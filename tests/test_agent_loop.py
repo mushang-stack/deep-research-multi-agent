@@ -636,3 +636,25 @@ def test_last_step_nudge_none_by_default():
     out = loop.run("q")
     assert not any(m["role"] == "user" and m["content"].startswith("LAST_STEP")
                    for m in out.history)
+
+
+def test_nudge_ignored_then_f2_wrapup_salvages():
+    # F1+F2 联合(生产 researcher 配置=同时开):最后一轮预告被无视仍调工具
+    # → 循环耗尽 → F2 收尾救回;消息序列全程 API 契约安全
+    c = FakeClient([
+        LLMResponse(content="", tool_calls=[_tc("c1")]),
+        LLMResponse(content="", tool_calls=[_tc("c2")]),   # 无视预告,仍调工具
+        LLMResponse(content='{"findings":[{"claim":"救回"}]}'),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=2, name="researcher", recorder=sink,
+                     last_step_nudge="LAST_STEP: 立即输出。", on_exhaustion="partial")
+    out = loop.run("q")
+    roles = [m["role"] for m in out.history]
+    assert roles == ["system", "user", "assistant", "tool",
+                     "user", "assistant", "tool", "user", "assistant"]
+    assert out.history[4]["content"] == "LAST_STEP: 立即输出。"        # 最后一轮前注入
+    assert out.history[7]["content"].startswith("MAX_STEPS_REACHED")  # F2 收尾指令
+    assert out.degraded is True and out.content.startswith('{"findings"')
+    assert sink.snapshot()[0]["stop_reason"] == "max_steps"

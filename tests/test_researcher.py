@@ -1,5 +1,5 @@
 from agents.researcher import make_researcher
-from agents.prompts import RESEARCHER_PROMPT
+from agents.prompts import RESEARCHER_PROMPT, RESEARCHER_LAST_STEP_NUDGE
 from llm.base import LLMClient, LLMResponse, ToolCall
 from core.schemas import SearchResult
 
@@ -34,3 +34,15 @@ def test_researcher_runs_search_then_json():
     out = agent.run("研究 x")
     assert "findings" in out.content
     assert len(out.history) >= 4  # system + user + assistant(tool) + tool + assistant
+
+
+def test_researcher_last_step_nudge_default_on():
+    # F1 收敛修复默认开:工厂自动带预告文案(spec D2)
+    loop = make_researcher(client=FakeClient([]), search_client=_FakeSearch())
+    assert loop.last_step_nudge == RESEARCHER_LAST_STEP_NUDGE
+
+
+def test_researcher_nudge_overridable_via_loop_kwargs():
+    loop = make_researcher(client=FakeClient([]), search_client=_FakeSearch(),
+                           loop_kwargs={"last_step_nudge": None, "on_exhaustion": "partial"})
+    assert loop.last_step_nudge is None and loop.on_exhaustion == "partial"

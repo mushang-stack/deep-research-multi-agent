@@ -91,3 +91,22 @@ def test_dispatch_runs_concurrently():
 
     dispatch_research(["q1", "q2", "q3"], run_one)
     assert state["max"] >= 2  # 确实并发(非串行)
+
+
+def test_degraded_empty_result_recorded_as_failure():
+    # F2 配套:降级收尾但 0 findings → failures 记 degraded_rescue_empty(否则成隐形缺口,
+    # orchestrator 既无 findings 也无 failures 信号;非降级的正常空手仍不算失败)
+    class _DegradedEmpty:
+        content = '{"findings": []}'
+        degraded = True
+    out = dispatch_research(["q"], lambda sq: _DegradedEmpty())
+    assert out["findings"] == []
+    assert out["failures"] == [{"sub_question": "q", "error": "degraded_rescue_empty"}]
+
+
+def test_degraded_with_findings_not_a_failure():
+    class _DegradedSalvaged:
+        content = '{"findings": [{"id": "f1", "claim": "c", "source_url": "u"}]}'
+        degraded = True
+    out = dispatch_research(["q"], lambda sq: _DegradedSalvaged())
+    assert len(out["findings"]) == 1 and out["failures"] == []

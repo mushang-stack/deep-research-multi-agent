@@ -40,6 +40,10 @@ RESEARCHER_PROMPT = """你是检索者(Researcher),针对单个研究子问题�
 id 用 f1、f2... 递增。confidence 是你对这条 claim 被来源支撑程度的自评。"""
 
 
+RESEARCHER_LAST_STEP_NUDGE = ("LAST_STEP: 这是最后一次机会。不要再调用任何工具,"
+                              "立即基于已读内容输出 Findings JSON。")
+
+
 VERIFIER_PROMPT = """你是验证者(Verifier),复核一批 Findings 是否有来源支撑。
 
 可用工具:
