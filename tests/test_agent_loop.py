@@ -520,10 +520,13 @@ def test_budget_crossed_on_final_iteration_partial_salvages():
         LLMResponse(content='{"findings":[{"claim":"救回"}]}',
                     usage={"prompt_tokens": 200, "completion_tokens": 20}),
     ])
+    sink = TelemetrySink()
     loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
-                     max_steps=2, budgets=[Budget(limit=150)], on_exhaustion="partial")
+                     max_steps=2, budgets=[Budget(limit=150)], on_exhaustion="partial",
+                     recorder=sink)
     out = loop.run("q")
     assert out.degraded is True and out.content.startswith('{"findings"')
+    assert sink.snapshot()[0]["stop_reason"] == "token_budget"   # 钉 post-loop partial 语义,防与 F2 分支 reorder
     assert len(c.calls) == 3                                  # 2 轮 + 1 次收尾
 
 
@@ -535,3 +538,44 @@ def test_max_steps_without_budget_unchanged():
                      max_steps=3)
     with pytest.raises(Escalation, match="hit max_steps"):
         loop.run("q")
+
+
+def test_max_steps_partial_forced_wrapup_salvages():
+    # max_steps 耗尽 + partial → 不再 Escalation 丢工作,MAX_STEPS_REACHED 收尾救回
+    c = FakeClient([
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c1")]),
+        LLMResponse(content="", usage={"prompt_tokens": 100, "completion_tokens": 10},
+                    tool_calls=[_tc("c2")]),
+        LLMResponse(content='{"findings":[{"claim":"救回"}]}',
+                    usage={"prompt_tokens": 300, "completion_tokens": 30}),
+    ])
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=2, name="researcher", recorder=sink,
+                     on_exhaustion="partial")
+    out = loop.run("q")
+    assert out.degraded is True
+    assert out.content.startswith('{"findings"')
+    assert len(c.calls) == 3                          # 2 轮循环 + 1 次收尾
+    assert c.calls[2]["tools"] is None                # 收尾不给工具面
+    assert out.history[-2]["content"].startswith("MAX_STEPS_REACHED")
+    snap = sink.snapshot()
+    assert len(snap) == 1
+    assert snap[0]["degraded"] is True and snap[0]["stop_reason"] == "max_steps"
+    assert snap[0]["steps"] == 3 and snap[0]["hit_max"] is False   # 诚实计数:2+1
+
+
+def test_max_steps_escalate_agent_unchanged():
+    # 未配 partial 的 agent:max_steps 耗尽照旧 Escalation(D1 语义不动)
+    looping = LLMResponse(content="", usage={"prompt_tokens": 10, "completion_tokens": 1},
+                          tool_calls=[_tc("c1")])
+    c = FakeClient([looping] * 100)
+    sink = TelemetrySink()
+    loop = AgentLoop(client=c, system_prompt="sys", registry=_registry_with_echo(),
+                     max_steps=3, name="verifier", recorder=sink)
+    with pytest.raises(Escalation, match="hit max_steps"):
+        loop.run("q")
+    snap = sink.snapshot()[0]
+    assert snap["hit_max"] is True and snap["stop_reason"] == "max_steps"
+    assert snap["degraded"] is False and snap["steps"] == 3

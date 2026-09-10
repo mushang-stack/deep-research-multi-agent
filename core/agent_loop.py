@@ -63,12 +63,18 @@ def compact_messages(messages: list, *, protected: int, keep_last_n: int) -> tup
     return n_tool, n_asst
 
 
+_TOKEN_BUDGET_DIRECTIVE = ("TOKEN_BUDGET_EXHAUSTED: 不再调用任何工具,"
+                           "基于已获取的信息立即输出最终结果。")
+_MAX_STEPS_DIRECTIVE = ("MAX_STEPS_REACHED: 不再调用任何工具,"
+                        "基于已获取的信息立即输出最终结果。")
+
+
 @dataclass
 class AgentResult:
     content: str
     history: list = field(default_factory=list)  # 完整消息历史(调试/审计/M2 上下文隔离参考)
     usage: dict = field(default_factory=dict)
-    degraded: bool = False                       # P1:partial 强制收尾产出(仅预算耗尽路径)
+    degraded: bool = False                       # partial 强制收尾产出(token 预算或 max_steps 耗尽路径)
 
 
 class AgentLoop:
@@ -215,6 +221,14 @@ class AgentLoop:
                          "spent": b.spent, "limit": b.limit},
             )
 
+        # F2 兜底:步数耗尽 + partial → 强制收尾救回工作(v2.1 的 partial 原语外溢到步数护栏);
+        # escalate agent 不进此分支,照旧 max_steps Escalation(D1 语义不变)
+        if self.on_exhaustion == "partial" and steps > 0:
+            return self._forced_wrapup(messages, steps, total_prompt,
+                                       total_completion, start, compactions,
+                                       directive=_MAX_STEPS_DIRECTIVE,
+                                       stop_reason="max_steps")
+
         # 用尽 max_steps 仍未收敛 → 上报后显式 escalation(sink 先记,不丢)
         wall = time.perf_counter() - start
         self._record(steps, total_prompt, total_completion, wall, hit_max=True,
@@ -225,11 +239,13 @@ class AgentLoop:
         )
 
     # partial 降级:一次强制收尾调用。上界 = 一次调用 + max_tokens;照常 charge(诚实计数)。
+    # directive/stop_reason 参数化:token 耗尽与 max_steps 耗尽共用此原语(收敛修复 F2)。
     def _forced_wrapup(self, messages, steps, total_prompt, total_completion,
-                       start, compactions) -> AgentResult:
-        messages.append({"role": "user", "content":
-            "TOKEN_BUDGET_EXHAUSTED: 不再调用任何工具,基于已获取的信息立即输出最终结果。"})
-        steps += 1  # 收尾调用顶替本轮迭代(≤ max_steps 恒成立)
+                       start, compactions,
+                       directive: str = _TOKEN_BUDGET_DIRECTIVE,
+                       stop_reason: str = "token_budget") -> AgentResult:
+        messages.append({"role": "user", "content": directive})
+        steps += 1  # 收尾是真实调用,诚实计数(post-loop 路径收尾后 steps = max_steps + 1,允许超)
         resp = self.client.chat(
             messages=messages, tools=None,     # 不给工具面,机械上杜绝收尾调工具
             model=self.model, temperature=self.temperature, max_tokens=self.max_tokens,
@@ -246,7 +262,7 @@ class AgentLoop:
         messages.append({"role": "assistant", "content": resp.content})
         wall = time.perf_counter() - start
         self._record(steps, total_prompt, total_completion, wall, hit_max=False,
-                     degraded=True, stop_reason="token_budget", compactions=compactions)
+                     degraded=True, stop_reason=stop_reason, compactions=compactions)
         return AgentResult(content=resp.content, history=messages, degraded=True,
                            usage={"prompt_tokens": total_prompt,
                                   "completion_tokens": total_completion})
