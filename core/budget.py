@@ -11,6 +11,10 @@ class Budget:
     spent: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
+    def __post_init__(self):
+        if self.limit <= 0:
+            raise ValueError(f"limit 必须为正整数:{self.limit}")
+
     def charge(self, prompt_tokens: int | None, completion_tokens: int | None) -> None:
         with self._lock:
             self.spent += (prompt_tokens or 0) + (completion_tokens or 0)

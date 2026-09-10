@@ -1,6 +1,8 @@
 # tests/test_budget.py
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from core.budget import Budget
 
 
@@ -29,3 +31,10 @@ def test_concurrent_charge_thread_safe():
     with ThreadPoolExecutor(max_workers=8) as ex:
         list(ex.map(work, range(8)))
     assert b.spent == 8000                 # Lock 下无丢失更新
+
+
+def test_limit_must_be_positive():
+    with pytest.raises(ValueError, match="limit"):
+        Budget(limit=0)
+    with pytest.raises(ValueError, match="limit"):
+        Budget(limit=-5)
